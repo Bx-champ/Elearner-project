@@ -23,7 +23,7 @@ export default function Navbar() {
       <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5">
         <div className="flex justify-between items-center md:flex">
           {/* Logo */}
-          <div className="text-2xl font-bold basis-1/3">LOGO</div>
+          <div className="text-2xl font-bold basis-1/4 md:basis-1/8 lg:basis-1/4 flex-shrink">LOGO</div>
 
           {/* Hamburger Icon for Mobile */}
           <div className="md:hidden">
@@ -33,7 +33,8 @@ export default function Navbar() {
           </div>
 
           {/* Nav Links - Desktop */}
-          <div className="hidden md:flex basis-2/3 gap-10 text-xl">
+         <div className="hidden md:flex basis-1/2 md:basis-6/8 lg:basis-1/2 flex-shrink-0 justify-evenly gap-10 lg:gap-6 md:gap-2 sm:gap-2 text-xl px-6">
+
             {navLinks.map((link) => {
               const isActive = currentPath === link.path;
               return (
@@ -55,6 +56,17 @@ export default function Navbar() {
                 </Link>
               );
             })}
+          </div>
+
+          {/* Vendor Register Button - Desktop only */}
+          <div className="basis-1/4 md:basis-1/8 lg:basis-1/4 flex justify-end hidden md:flex">
+            <Link
+              to="/register/vendor"
+              onClick={closeMenu}
+              className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+            >
+              Register as Vendor
+            </Link>
           </div>
         </div>
 
@@ -83,6 +95,15 @@ export default function Navbar() {
                 </Link>
               );
             })}
+
+            {/* Vendor Register Button - Mobile */}
+            <Link
+              to="/register/vendor"
+              onClick={closeMenu}
+              className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+            >
+              Register as Vendor
+            </Link>
           </div>
         )}
       </div>

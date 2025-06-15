@@ -11,6 +11,7 @@ import SignUp from './pages/SignUp';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import { AuthContext } from './authContext';
+import VendorRegister from './pages/VendorRegister';
 
 function App() {
   const { role } = useContext(AuthContext);
@@ -27,6 +28,8 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/register/vendor" element={<VendorRegister />} />
+
       </Routes>
     </div>
   );

@@ -38,7 +38,7 @@ export default function SignUp() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f4f2ec] px-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-[#16355a]">
-        <h2 className="text-3xl font-bold mb-6 text-center">Create an Account</h2>
+        <h2 className="text-3xl font-extrabold mb-6 text-center">Create an Account</h2>
 
         <form className="space-y-4" onSubmit={handleSubmit} autoComplete="off">
           {/* Name */}
