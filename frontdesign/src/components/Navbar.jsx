@@ -33,7 +33,7 @@ export default function Navbar() {
           </div>
 
           {/* Nav Links - Desktop */}
-          <div className="hidden md:flex basis-2/3 gap-10 text-xl ">
+          <div className="hidden md:flex basis-2/3 gap-10 text-xl">
             {navLinks.map((link) => {
               const isActive = currentPath === link.path;
               return (
@@ -59,36 +59,32 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Dropdown Menu */}
-      {/* Mobile Dropdown Menu */}
-{menuOpen && (
-  <div
-    className="flex flex-col mt-4 gap-4 md:hidden text-xl relative z-50 animate-slide-down"
-  >
-    {navLinks.map((link) => {
-      const isActive = currentPath === link.path;
-      return (
-        <Link
-          key={link.path}
-          to={link.path}
-          onClick={closeMenu}
-          className={`relative group cursor-pointer ${
-            isActive ? 'text-[#4457ff] font-semibold' : ''
-          }`}
-        >
-          <span>{link.label}</span>
-          <span
-            className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
-              isActive
-                ? 'w-full bg-[#4457ff]'
-                : 'w-0 bg-black group-hover:w-full'
-            }`}
-          ></span>
-        </Link>
-      );
-    })}
-  </div>
-)}
-
+        {menuOpen && (
+          <div className="flex flex-col mt-4 gap-4 md:hidden text-xl relative z-50 animate-slide-down">
+            {navLinks.map((link) => {
+              const isActive = currentPath === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={closeMenu}
+                  className={`relative group cursor-pointer ${
+                    isActive ? 'text-[#4457ff] font-semibold' : ''
+                  }`}
+                >
+                  <span>{link.label}</span>
+                  <span
+                    className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
+                      isActive
+                        ? 'w-full bg-[#4457ff]'
+                        : 'w-0 bg-black group-hover:w-full'
+                    }`}
+                  ></span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Glass Blur Overlay */}

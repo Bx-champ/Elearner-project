@@ -2,8 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
+import { useContext } from 'react';
+import { AuthContext } from '../authContext';
+
 
 export default function SignIn() {
+    const { login } = useContext(AuthContext);
+
     const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +35,8 @@ export default function SignIn() {
         try {
             const res = await axios.post('http://localhost:5000/api/auth/signin', { email, password });
 localStorage.setItem('token', res.data.token);
-localStorage.setItem('role', res.data.role);
+login(res.data.role); // ✅ This updates React state and localStorage
+
 
 if (res.data.role === 'admin') {
   navigate('/admin/dashboard');
