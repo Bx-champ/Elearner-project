@@ -15,6 +15,7 @@ import VendorRegister from './pages/VendorRegister';
 import VendorDashboard from './pages/VendorDashboard';
 import VendorNavbar from './components/VendorNavbar';
 import UserNavbar from './components/UserNavbar';
+import AdminUpload from './pages/AdminUpload';
 
 function App() {
   const { role } = useContext(AuthContext);
@@ -37,6 +38,7 @@ function App() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/register/vendor" element={<VendorRegister />} />
         <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+        <Route path="/admin/upload" element={<AdminUpload />} />
 
       </Routes>
     </div>
