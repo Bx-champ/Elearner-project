@@ -1,43 +1,59 @@
 const express = require('express');
 const multer = require('multer');
-const AWS = require('aws-sdk');
-const multerS3 = require('multer-s3');
-const Book = require('../models/Book'); // MongoDB Book Model
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const Book = require('../models/Book');
+const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const router = express.Router();
 
-// AWS Config
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_KEY,
+// S3 Client config
+const s3 = new S3Client({
   region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY,
+    secretAccessKey: process.env.AWS_SECRET_KEY,
+  },
 });
 
-// File upload settings
-const upload = multer({
-  storage: multerS3({
-    s3,
-    bucket: process.env.S3_BUCKET,
-    acl: 'public-read',
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: function (req, file, cb) {
-      const filename = `books/${Date.now()}-${file.originalname}`;
-      cb(null, filename);
-    },
-  }),
-});
+// Multer setup to store files locally temporarily
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 const cpUpload = upload.fields([
   { name: 'cover', maxCount: 1 },
   { name: 'pdf', maxCount: 1 },
 ]);
 
+// Helper to upload buffer to S3
+const uploadFileToS3 = async (buffer, filename, mimetype) => {
+  const params = {
+    Bucket: process.env.S3_BUCKET,
+    Key: filename,
+    Body: buffer,
+    ContentType: mimetype,
+    
+  };
+
+  const command = new PutObjectCommand(params);
+  await s3.send(command);
+
+  return `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
+};
+
 router.post('/upload', cpUpload, async (req, res) => {
   try {
     const { name, price, contents, subject, tags } = req.body;
-    const coverUrl = req.files['cover'][0].location;
-    const pdfUrl = req.files['pdf'][0].location;
+
+    const cover = req.files['cover'][0];
+    const pdf = req.files['pdf'][0];
+
+    const coverFilename = `books/${Date.now()}-${cover.originalname}`;
+    const pdfFilename = `books/${Date.now()}-${pdf.originalname}`;
+
+    const coverUrl = await uploadFileToS3(cover.buffer, coverFilename, cover.mimetype);
+    const pdfUrl = await uploadFileToS3(pdf.buffer, pdfFilename, pdf.mimetype);
 
     const book = new Book({
       name,
@@ -52,8 +68,8 @@ router.post('/upload', cpUpload, async (req, res) => {
     await book.save();
     res.status(201).json({ message: 'Book uploaded successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Upload failed' });
+    console.error('Upload Error:', err);
+    res.status(500).json({ message: 'Upload failed', error: err.message });
   }
 });
 
