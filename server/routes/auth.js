@@ -113,6 +113,29 @@ router.post('/signup', async (req, res) => {
 
 
 
+// GET /api/books
+router.get('/books', async (req, res) => {
+  try {
+    const books = await Book.find(); // Assuming Book is your Mongoose model
+    res.json({ success: true, books });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch books' });
+  }
+});
+
+// DELETE /api/admin/book/:id
+router.delete('/admin/book/:id', async (req, res) => {
+  try {
+    const book = await Book.findByIdAndDelete(req.params.id);
+    // Optionally: delete from S3 here using SDK
+    res.json({ success: true, message: 'Book deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to delete book' });
+  }
+});
+
+
+
 
 // router.post('/admin/login', adminLogin); 
 
