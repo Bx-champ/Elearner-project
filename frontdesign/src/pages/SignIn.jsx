@@ -1,15 +1,13 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
-import { useContext } from 'react';
 import { AuthContext } from '../authContext';
 
-
 export default function SignIn() {
-    const { login } = useContext(AuthContext);
+  const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -30,30 +28,35 @@ export default function SignIn() {
     const formErrors = validate();
     setErrors(formErrors);
 
-    if (Object.keys(formErrors).length === 0) {
-      // Form is valid — proceed with API/auth
-        try {
-            const res = await axios.post('http://localhost:5000/api/auth/signin', { email, password });
-localStorage.setItem('token', res.data.token);
-login(res.data.role); // ✅ This updates React state and localStorage
+    if (Object.keys(formErrors).length > 0) return;
 
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/signin', {
+        email,
+        password
+      });
 
-if (res.data.role === 'admin') {
-  navigate('/admin/dashboard');
-} else {
-  navigate('/dashboard');
-}
- // after login
-  } catch (err) {
-  if (err.response && err.response.data && err.response.data.message) {
-    alert(err.response.data.message);
-  } else {
-    console.error("Unknown error:", err);
-    alert("Something went wrong. Please try again later.");
-  }
-}
+      const { token, role } = res.data;
 
-      console.log('Signing in with:', { email, password });
+      localStorage.setItem('token', token); // store token
+      login(role); // update React Context
+
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (role === 'vendor') {
+        navigate('/vendor/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.message) {
+        alert(err.response.data.message);
+      } else {
+        alert("Something went wrong. Please try again.");
+      }
     }
   };
 
@@ -78,9 +81,7 @@ if (res.data.role === 'admin') {
                 errors.email ? 'border-red-500 focus:ring-red-500' : 'focus:ring-[#4457ff]'
               }`}
             />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1 ml-1">{errors.email}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-sm mt-1 ml-1">{errors.email}</p>}
           </div>
 
           {/* Password Input */}
@@ -95,9 +96,7 @@ if (res.data.role === 'admin') {
                 errors.password ? 'border-red-500 focus:ring-red-500' : 'focus:ring-[#4457ff]'
               }`}
             />
-            {errors.password && (
-              <p className="text-red-500 text-sm mt-1 ml-1">{errors.password}</p>
-            )}
+            {errors.password && <p className="text-red-500 text-sm mt-1 ml-1">{errors.password}</p>}
           </div>
 
           {/* Submit */}
@@ -111,10 +110,7 @@ if (res.data.role === 'admin') {
 
         <p className="text-sm mt-6 text-center text-gray-600">
           Don’t have an account?{' '}
-          <Link
-            to="/signup"
-            className="text-[#4457ff] font-semibold hover:underline"
-          >
+          <Link to="/signup" className="text-[#4457ff] font-semibold hover:underline">
             Sign up
           </Link>
         </p>
@@ -122,5 +118,3 @@ if (res.data.role === 'admin') {
     </div>
   );
 }
-
-/////////previus

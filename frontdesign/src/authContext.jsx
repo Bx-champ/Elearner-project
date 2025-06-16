@@ -1,20 +1,26 @@
-// src/authContext.jsx
 import { createContext, useState, useEffect } from 'react';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [role, setRole] = useState(() => localStorage.getItem('role'));
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('role');
+    if (storedRole) {
+      setRole(storedRole);
+    }
+  }, []);
 
   const login = (newRole) => {
     localStorage.setItem('role', newRole);
-    setRole(newRole); // ✅ Trigger re-render
+    setRole(newRole);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
-    setRole(null); // ✅ Trigger re-render
+    setRole(null);
   };
 
   return (

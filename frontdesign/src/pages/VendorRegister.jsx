@@ -17,7 +17,7 @@ export default function VendorRegister() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
@@ -27,9 +27,18 @@ export default function VendorRegister() {
     }
 
     // TODO: Connect to backend API for registration
-    console.log("Registering Vendor:", formData);
+    try {
+    await axios.post('http://localhost:5000/api/auth/vendor/signup', formData);
     setError('');
     setSuccess("Vendor registration submitted successfully!");
+  } catch (err) {
+  console.error("Full error:", err); // log full error for debugging
+  if (err.response?.data?.message) {
+    alert(err.response.data.message);
+  } else {
+    alert("Something went wrong. Please try again.");
+  }
+}
   };
 
   return (

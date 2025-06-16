@@ -12,6 +12,8 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import { AuthContext } from './authContext';
 import VendorRegister from './pages/VendorRegister';
+import VendorDashboard from './pages/VendorDashboard';
+import VendorNavbar from './components/VendorNavbar';
 
 function App() {
   const { role } = useContext(AuthContext);
@@ -19,7 +21,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] text-black">
-      {role === 'admin' ? <AdminNavbar /> : <Navbar />}
+      {role === 'admin' && <AdminNavbar />}
+      {role === 'user' && <Navbar />}
+      {role === 'vendor' && <VendorNavbar />}
+
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<AboutUs />} />
@@ -29,6 +34,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/register/vendor" element={<VendorRegister />} />
+        <Route path="/vendor/dashboard" element={<VendorDashboard />} />
 
       </Routes>
     </div>

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
+const Vendor = require('../models/Vendor');
 // const { adminLogin } = require('../controllers/adminController');
 
 
@@ -47,6 +48,33 @@ router.post('/signin', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
+
+router.post('/vendor/signup', async (req, res) => {
+  const { instituteName, representativeName, email, phone, password } = req.body;
+
+  try {
+    const existingVendor = await Vendor.findOne({ email });
+    if (existingVendor) return res.status(400).json({ message: 'Vendor already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newVendor = new Vendor({
+      instituteName,
+      representativeName,
+      email,
+      phone,
+      password: hashedPassword,
+    });
+
+    await newVendor.save();
+    res.status(201).json({ message: 'Vendor registered successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 
 // router.post('/admin/login', adminLogin); 
