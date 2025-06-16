@@ -6,7 +6,8 @@ export default function AdminDashboard() {
   const [books, setBooks] = useState([]);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/books')
+    axios.get('http://localhost:5000/api/auth/books')
+
       .then(res => setBooks(res.data.books))
       .catch(err => console.error('Failed to load books'));
   }, []);
@@ -14,7 +15,7 @@ export default function AdminDashboard() {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this book?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/admin/book/${id}`);
+      await axios.delete(`http://localhost:5000/api/auth/admin/book/${id}`);
       setBooks(prev => prev.filter(book => book._id !== id));
     } catch (err) {
       alert('Deletion failed.');

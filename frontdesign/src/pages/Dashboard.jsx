@@ -6,7 +6,7 @@ export default function UserDashboard() {
   const [books, setBooks] = useState([]);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/books')
+    axios.get('http://localhost:5000/api/auth/books')
       .then(res => setBooks(res.data.books))
       .catch(err => console.error('Failed to load books'));
   }, []);

@@ -4,10 +4,24 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
+const Book = require('../models/Book');
+
+const { S3Client, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+// const Book = require('../models/Book');
 // const { adminLogin } = require('../controllers/adminController');
 
 
 const router = express.Router();
+
+
+// Setup AWS S3 client
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 router.post('/signin', async (req, res) => {
   const { email, password } = req.body;
@@ -113,7 +127,7 @@ router.post('/signup', async (req, res) => {
 
 
 
-// GET /api/books
+// GET /api/auth/books
 router.get('/books', async (req, res) => {
   try {
     const books = await Book.find(); // Assuming Book is your Mongoose model
@@ -124,15 +138,58 @@ router.get('/books', async (req, res) => {
 });
 
 // DELETE /api/admin/book/:id
+// router.delete('/admin/book/:id', async (req, res) => {
+//   try {
+//     const book = await Book.findByIdAndDelete(req.params.id);
+//     // Optionally: delete from S3 here using SDK
+//     res.json({ success: true, message: 'Book deleted' });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: 'Failed to delete book' });
+//   }
+// });
+
+
+
+
 router.delete('/admin/book/:id', async (req, res) => {
   try {
-    const book = await Book.findByIdAndDelete(req.params.id);
-    // Optionally: delete from S3 here using SDK
-    res.json({ success: true, message: 'Book deleted' });
+    // Find the book
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ success: false, message: 'Book not found' });
+    }
+
+    // Extract S3 object keys from URLs
+    const pdfKey = book.pdfUrl?.split('.com/')[1];   // e.g., "books/abc.pdf"
+    const coverKey = book.coverUrl?.split('.com/')[1]; // e.g., "books/abc.jpg"
+
+    // Delete files from S3 if keys exist
+    if (pdfKey || coverKey) {
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Delete: {
+          Objects: [
+            ...(pdfKey ? [{ Key: pdfKey }] : []),
+            ...(coverKey ? [{ Key: coverKey }] : [])
+          ],
+          Quiet: false
+        }
+      });
+
+      await s3.send(deleteCommand);
+    }
+
+    // Delete the book from MongoDB
+    await Book.findByIdAndDelete(req.params.id);
+
+    res.json({ success: true, message: 'Book and S3 files deleted successfully' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to delete book' });
+    console.error('Error deleting book:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete book or files' });
   }
 });
+
+
 
 
 
