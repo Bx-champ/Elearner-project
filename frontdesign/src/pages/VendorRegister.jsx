@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
 export default function VendorRegister() {
   const [formData, setFormData] = useState({

@@ -33,10 +33,7 @@ const vendorSchema = new mongoose.Schema({
 //     default: 'vendor',
 //     enum: ['admin', 'user', 'vendor']
 //   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  
 });
 
 module.exports = mongoose.model('Vendor', vendorSchema);

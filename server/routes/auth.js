@@ -59,7 +59,7 @@ router.post('/vendor/signup', async (req, res) => {
     if (existingVendor) return res.status(400).json({ message: 'Vendor already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newVendor = new Vendor({
+    const vendor = new Vendor({
       instituteName,
       representativeName,
       email,
@@ -67,7 +67,7 @@ router.post('/vendor/signup', async (req, res) => {
       password: hashedPassword,
     });
 
-    await newVendor.save();
+    await vendor.save();
     res.status(201).json({ message: 'Vendor registered successfully' });
   } catch (err) {
     console.error(err);
