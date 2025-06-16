@@ -28,11 +28,11 @@ const vendorSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-//   role: {
-//     type: String,
-//     default: 'vendor',
-//     enum: ['admin', 'user', 'vendor']
-//   },
+role: {
+  type: String,
+  default: 'vendor'
+}
+
   
 });
 

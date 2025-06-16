@@ -14,6 +14,7 @@ import { AuthContext } from './authContext';
 import VendorRegister from './pages/VendorRegister';
 import VendorDashboard from './pages/VendorDashboard';
 import VendorNavbar from './components/VendorNavbar';
+import UserNavbar from './components/UserNavbar';
 
 function App() {
   const { role } = useContext(AuthContext);
@@ -22,8 +23,9 @@ function App() {
   return (
     <div className="min-h-screen bg-[#f4f2ec] text-black">
       {role === 'admin' && <AdminNavbar />}
-      {role === 'user' && <Navbar />}
+      {role === 'user' && <UserNavbar />}
       {role === 'vendor' && <VendorNavbar />}
+      {role === null && <Navbar/>}
 
       <Routes>
         <Route path="/" element={<Home />} />

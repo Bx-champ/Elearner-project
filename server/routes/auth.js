@@ -9,43 +9,46 @@ const Vendor = require('../models/Vendor');
 
 const router = express.Router();
 
-router.post('/signup', async (req, res) => {
-  const {name, email, password } = req.body;
-  const existingUser = await User.findOne({ email });
-  if (existingUser) return res.status(400).json({ message: 'Email already registered' });
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({ name ,email, password: hashedPassword });
-  await user.save();
-
-  res.status(201).json({ message: 'User created' });
-});
-
 router.post('/signin', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Check if the email belongs to an admin
-    let user = await Admin.findOne({ email });
-    let role = 'admin';
+    let user;
+    let role;
 
+    // Check Admin
+    user = await Admin.findOne({ email });
+    if (user) role = 'admin';
+
+    // Check User
     if (!user) {
-      // If not admin, check in User model
       user = await User.findOne({ email });
-      role = 'user';
+      if (user) role = 'user';
     }
 
-    if (!user) return res.status(400).json({ message: 'User not found' });
+    // Check Vendor
+    if (!user) {
+      user = await Vendor.findOne({ email });
+      if (user) role = 'vendor';
+    }
+
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
-    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+    });
 
-    res.status(200).json({ token, role, message: `${role} login success` });
+    return res.status(200).json({ token, role, message: `${role} login success` });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -55,6 +58,8 @@ router.post('/vendor/signup', async (req, res) => {
   const { instituteName, representativeName, email, phone, password } = req.body;
 
   try {
+    const existingUser = await User.findOne({email});
+    if(existingUser) return res.status(400).json({ message: 'user cannot be vendor' });
     const existingVendor = await Vendor.findOne({ email });
     if (existingVendor) return res.status(400).json({ message: 'Vendor already exists' });
 
@@ -74,6 +79,38 @@ router.post('/vendor/signup', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
+// User Signup Route
+router.post('/signup', async (req, res) => {
+  const { name, email, password } = req.body;
+
+  try {
+    const existingVendor = await Vendor.findOne({ email });
+    if (existingVendor) return res.status(400).json({ message: 'Vendor cannot be user' });
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
+      return res.status(400).json({ message: 'User already exists' });
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create and save the new user
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
+    await newUser.save();
+    res.status(201).json({ message: 'Registration successful' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 
 
