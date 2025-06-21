@@ -2,73 +2,83 @@ const express = require('express');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const Book = require('../models/Book');
-const path = require('path');
 const crypto = require('crypto');
 require('dotenv').config();
 
 const router = express.Router();
 
-// S3 Client config
+// S3 config
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY,
-    secretAccessKey: process.env.AWS_SECRET_KEY,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
 });
 
-// Multer setup to store files locally temporarily
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
+// Multer for cover + chapters (optional, or could do base64 / buffer upload if frontend sends FormData)
+const upload = multer({ storage: multer.memoryStorage() });
 const cpUpload = upload.fields([
   { name: 'cover', maxCount: 1 },
-  { name: 'pdf', maxCount: 1 },
+  { name: 'chapters', maxCount: 50 },
 ]);
 
-// Helper to upload buffer to S3
+// Upload helper
 const uploadFileToS3 = async (buffer, filename, mimetype) => {
   const params = {
-    Bucket: process.env.S3_BUCKET,
+    Bucket: process.env.AWS_BUCKET_NAME,
     Key: filename,
     Body: buffer,
     ContentType: mimetype,
-    
   };
 
   const command = new PutObjectCommand(params);
   await s3.send(command);
 
-  return `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
+  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
 };
 
-router.post('/upload', cpUpload, async (req, res) => {
+router.post('/save-book', cpUpload, async (req, res) => {
   try {
-    const { name, price, contents, subject, tags } = req.body;
+    // Parse text fields
+   const { name, contents, subject, tags, chaptersMeta: chaptersJson } = req.body;
+const chaptersMeta = JSON.parse(chaptersJson);
 
+
+    // Upload cover
     const cover = req.files['cover'][0];
-    const pdf = req.files['pdf'][0];
+    const coverKey = `books/${Date.now()}-${cover.originalname}`;
+    const coverUrl = await uploadFileToS3(cover.buffer, coverKey, cover.mimetype);
 
-    const coverFilename = `books/${Date.now()}-${cover.originalname}`;
-    const pdfFilename = `books/${Date.now()}-${pdf.originalname}`;
+    // Upload chapters
+    const chapterFiles = req.files['chapters'];
+    const uploadedChapters = await Promise.all(
+      chapterFiles.map(async (file, idx) => {
+        const chapterKey = `books/${Date.now()}-${file.originalname}`;
+        const pdfUrl = await uploadFileToS3(file.buffer, chapterKey, file.mimetype);
+        return {
+          ...chaptersMeta[idx],
+          pdfUrl,
+        };
+      })
+    );
 
-    const coverUrl = await uploadFileToS3(cover.buffer, coverFilename, cover.mimetype);
-    const pdfUrl = await uploadFileToS3(pdf.buffer, pdfFilename, pdf.mimetype);
+    const totalPrice = uploadedChapters.reduce((sum, ch) => sum + Number(ch.price || 0), 0);
 
     const book = new Book({
       name,
-      price,
       contents,
       subject,
       tags,
       coverUrl,
-      pdfUrl,
+      chapters: uploadedChapters,
+      price: totalPrice,
     });
 
     await book.save();
-    res.status(201).json({ message: 'Book uploaded successfully' });
+    res.status(201).json({ message: 'Book uploaded successfully', book });
   } catch (err) {
-    console.error('Upload Error:', err);
+    console.error('Upload failed:', err);
     res.status(500).json({ message: 'Upload failed', error: err.message });
   }
 });

@@ -153,36 +153,43 @@ router.get('/books', async (req, res) => {
 
 router.delete('/admin/book/:id', async (req, res) => {
   try {
-    // Find the book
     const book = await Book.findById(req.params.id);
     if (!book) {
       return res.status(404).json({ success: false, message: 'Book not found' });
     }
 
-    // Extract S3 object keys from URLs
-    const pdfKey = book.pdfUrl?.split('.com/')[1];   // e.g., "books/abc.pdf"
-    const coverKey = book.coverUrl?.split('.com/')[1]; // e.g., "books/abc.jpg"
+    // Extract S3 keys
+    const objectsToDelete = [];
 
-    // Delete files from S3 if keys exist
-    if (pdfKey || coverKey) {
+    if (book.coverUrl) {
+      const coverKey = book.coverUrl.split('.com/')[1];
+      if (coverKey) objectsToDelete.push({ Key: coverKey });
+    }
+
+    book.chapters.forEach(ch => {
+      if (ch.pdfUrl) {
+        const pdfKey = ch.pdfUrl.split('.com/')[1];
+        if (pdfKey) objectsToDelete.push({ Key: pdfKey });
+      }
+    });
+
+    // Delete from S3
+    if (objectsToDelete.length > 0) {
       const deleteCommand = new DeleteObjectsCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Delete: {
-          Objects: [
-            ...(pdfKey ? [{ Key: pdfKey }] : []),
-            ...(coverKey ? [{ Key: coverKey }] : [])
-          ],
+          Objects: objectsToDelete,
           Quiet: false
         }
       });
-
       await s3.send(deleteCommand);
     }
 
-    // Delete the book from MongoDB
+    // Delete from MongoDB
     await Book.findByIdAndDelete(req.params.id);
 
-    res.json({ success: true, message: 'Book and S3 files deleted successfully' });
+    res.json({ success: true, message: 'Book and files deleted from DB & S3' });
+
   } catch (err) {
     console.error('Error deleting book:', err);
     res.status(500).json({ success: false, message: 'Failed to delete book or files' });
