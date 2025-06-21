@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Trash2, Pencil } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const [books, setBooks] = useState([]);
@@ -26,10 +26,10 @@ export default function AdminDashboard() {
     try {
       await axios.delete(`http://localhost:5000/api/auth/admin/book/${id}`);
       setBooks(prev => prev.filter(book => book._id !== id));
-      alert('Book deleted successfully');
+      alert('✅ Book deleted successfully');
     } catch (err) {
       console.error('Delete failed', err);
-      alert('Failed to delete the book');
+      alert('❌ Failed to delete the book');
     }
   };
 
@@ -42,7 +42,10 @@ export default function AdminDashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {books.map(book => (
-            <div key={book._id} className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 hover:shadow-xl transition relative">
+            <div 
+              key={book._id}
+              className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 hover:shadow-xl transition relative group"
+            >
               <div 
                 onClick={() => navigate(`/admin/book/${book._id}`)} 
                 className="cursor-pointer"
@@ -50,7 +53,7 @@ export default function AdminDashboard() {
                 <img 
                   src={book.coverUrl} 
                   alt={book.name} 
-                  className="h-48 w-full object-cover rounded-lg mb-3" 
+                  className="h-48 w-full object-cover rounded-lg mb-3 group-hover:scale-105 transition-transform"
                 />
                 <h3 className="text-lg font-semibold text-[#2f3e52]">{book.name}</h3>
                 <p className="text-sm text-gray-500">{book.subject} • ₹{book.price}</p>
@@ -60,18 +63,19 @@ export default function AdminDashboard() {
               <div className="flex justify-end gap-3 mt-3">
                 <button 
                   onClick={() => handleDelete(book._id)} 
-                  className="text-red-600 hover:text-red-800"
+                  className="text-red-600 hover:text-red-800 transition"
                   title="Delete Book"
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
-                <button 
-                  onClick={() => alert('Edit coming soon!')} 
-                  className="text-green-600 hover:text-green-800"
+
+                <Link 
+                  to={`/admin/edit/${book._id}`} 
+                  className="text-green-600 hover:text-green-800 transition"
                   title="Edit Book"
                 >
                   <Pencil className="w-5 h-5" />
-                </button>
+                </Link>
               </div>
             </div>
           ))}

@@ -5,6 +5,9 @@ const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
 const Book = require('../models/Book');
+require('dotenv').config();
+
+
 
 const { S3Client, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
 // const Book = require('../models/Book');
@@ -127,7 +130,26 @@ router.post('/signup', async (req, res) => {
 
 
 
+
+
+
 // GET /api/auth/books
+router.get('/book/:id', async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+    res.json({ success: true, book });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch book' });
+  }
+});
+
+
+
+
 router.get('/books', async (req, res) => {
   try {
     const books = await Book.find(); // Assuming Book is your Mongoose model
@@ -195,6 +217,24 @@ router.delete('/admin/book/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete book or files' });
   }
 });
+
+
+router.put('/admin/book/:id', async (req, res) => {
+  try {
+    const { name, subject, tags, contents, chapters } = req.body;
+    const book = await Book.findByIdAndUpdate(
+      req.params.id,
+      { name, subject, tags, contents, chapters },
+      { new: true }
+    );
+    if (!book) return res.status(404).json({ message: 'Book not found' });
+    res.json({ message: 'Book updated successfully', book });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Update failed' });
+  }
+});
+
 
 
 
