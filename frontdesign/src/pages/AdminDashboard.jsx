@@ -40,27 +40,41 @@ export default function AdminDashboard() {
       {books.length === 0 ? (
         <p className="text-gray-500">No books uploaded yet.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {books.map(book => (
-            <div 
+            <div
               key={book._id}
-              className="bg-white rounded-2xl p-4 shadow-lg border border-gray-100 hover:shadow-xl transition relative group"
+              className="group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-white/30 to-white/10 backdrop-blur-md border border-white/40 shadow-md hover:shadow-2xl transition-transform duration-300 hover:scale-[1.03]"
             >
-              <div 
-                onClick={() => navigate(`/admin/book/${book._id}`)} 
-                className="cursor-pointer"
-              >
-                <img 
-                  src={book.coverUrl} 
-                  alt={book.name} 
-                  className="h-48 w-full object-cover rounded-lg mb-3 group-hover:scale-105 transition-transform"
+              {/* Background Image Blur */}
+              <div className="absolute inset-0 z-0">
+                <img
+                  src={book.coverUrl}
+                  alt={book.name}
+                  className="w-full h-full object-cover opacity-20 blur-sm scale-110"
                 />
-                <h3 className="text-lg font-semibold text-[#2f3e52]">{book.name}</h3>
-                <p className="text-sm text-gray-500">{book.subject} • ₹{book.price}</p>
-                <p className="mt-1 text-xs text-gray-600 line-clamp-2">{book.contents}</p>
+                <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff66] to-[#ffffff22] mix-blend-overlay" />
               </div>
 
-              <div className="flex justify-end gap-3 mt-3">
+              {/* Foreground Content */}
+              <div 
+                onClick={() => navigate(`/admin/book/${book._id}`)} 
+                className="relative z-10 space-y-2 cursor-pointer"
+              >
+                <div className="overflow-hidden rounded-xl">
+                  <img
+                    src={book.coverUrl}
+                    alt={book.name}
+                    className="rounded-xl transition-transform duration-500 group-hover:scale-105 group-hover:rotate-[0.5deg]"
+                  />
+                </div>
+
+                <h3 className="text-xl font-bold text-[#1f2937] drop-shadow-sm">{book.name}</h3>
+                <p className="text-sm text-gray-600">{book.subject} • ₹{book.price}</p>
+                <p className="text-sm text-gray-500 line-clamp-3">{book.contents}</p>
+              </div>
+
+              <div className="relative z-10 flex justify-end gap-3 mt-3">
                 <button 
                   onClick={() => handleDelete(book._id)} 
                   className="text-red-600 hover:text-red-800 transition"

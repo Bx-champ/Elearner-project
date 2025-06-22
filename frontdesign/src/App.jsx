@@ -18,6 +18,8 @@ import UserNavbar from './components/UserNavbar';
 import AdminUpload from './pages/AdminUpload';
 import AdminUploadFlow from './pages/AdminUploadFlow';
 import EditBook from './pages/EditBook';
+import AdminBookChapters from './pages/AdminBookChapters';
+import UserBookChapters from './pages/UserBookChapters';
 
 function App() {
   const { role } = useContext(AuthContext);
@@ -42,6 +44,8 @@ function App() {
         <Route path="/vendor/dashboard" element={<VendorDashboard />} />
         <Route path="/admin/upload" element={<AdminUploadFlow />} />
         <Route path="/admin/edit/:id" element={<EditBook />} />
+        <Route path="/admin/book/:id" element={<AdminBookChapters />} />
+        <Route path="/user/book/:id" element={<UserBookChapters />} />
 
       </Routes>
     </div>
