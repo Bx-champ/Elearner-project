@@ -1,125 +1,74 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
 const Book = require('../models/Book');
 require('dotenv').config();
 
-
-
-const { S3Client, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
-// const Book = require('../models/Book');
-// const { adminLogin } = require('../controllers/adminController');
-
-
 const router = express.Router();
 
-
-// Setup AWS S3 client
+// S3 client
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
 });
 
+// Multer setup
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper to upload file to S3
+const uploadFileToS3 = async (buffer, key, mimetype) => {
+  await s3.send(new PutObjectCommand({
+    Bucket: process.env.AWS_BUCKET_NAME,
+    Key: key,
+    Body: buffer,
+    ContentType: mimetype
+  }));
+  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+};
+
+// ==================== AUTH ====================
 router.post('/signin', async (req, res) => {
   const { email, password } = req.body;
-
   try {
-    let user;
-    let role;
-
-    // Check Admin
+    let user, role;
     user = await Admin.findOne({ email });
     if (user) role = 'admin';
-
-    // Check User
     if (!user) {
       user = await User.findOne({ email });
       if (user) role = 'user';
     }
-
-    // Check Vendor
     if (!user) {
       user = await Vendor.findOne({ email });
       if (user) role = 'vendor';
     }
-
-    if (!user) {
-      return res.status(400).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(400).json({ message: 'User not found' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
-
-    return res.status(200).json({ token, role, message: `${role} login success` });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-});
-
-
-
-router.post('/vendor/signup', async (req, res) => {
-  const { instituteName, representativeName, email, phone, password } = req.body;
-
-  try {
-    const existingUser = await User.findOne({email});
-    if(existingUser) return res.status(400).json({ message: 'user cannot be vendor' });
-    const existingVendor = await Vendor.findOne({ email });
-    if (existingVendor) return res.status(400).json({ message: 'Vendor already exists' });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const vendor = new Vendor({
-      instituteName,
-      representativeName,
-      email,
-      phone,
-      password: hashedPassword,
-    });
-
-    await vendor.save();
-    res.status(201).json({ message: 'Vendor registered successfully' });
+    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, role, message: `${role} login success` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-
-// User Signup Route
 router.post('/signup', async (req, res) => {
   const { name, email, password } = req.body;
-
   try {
-    const existingVendor = await Vendor.findOne({ email });
-    if (existingVendor) return res.status(400).json({ message: 'Vendor cannot be user' });
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: 'User already exists' });
-
-    // Hash the password
+    if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor cannot be user' });
+    if (await User.findOne({ email })) return res.status(400).json({ message: 'User already exists' });
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create and save the new user
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-    });
-
+    const newUser = new User({ name, email, password: hashedPassword });
     await newUser.save();
     res.status(201).json({ message: 'Registration successful' });
   } catch (err) {
@@ -128,18 +77,35 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+router.post('/vendor/signup', async (req, res) => {
+  const { instituteName, representativeName, email, phone, password } = req.body;
+  try {
+    if (await User.findOne({ email })) return res.status(400).json({ message: 'user cannot be vendor' });
+    if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor already exists' });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const vendor = new Vendor({ instituteName, representativeName, email, phone, password: hashedPassword });
+    await vendor.save();
+    res.status(201).json({ message: 'Vendor registered successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
+// ==================== BOOK ROUTES ====================
+router.get('/books', async (req, res) => {
+  try {
+    const books = await Book.find();
+    res.json({ success: true, books });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch books' });
+  }
+});
 
-
-
-
-// GET /api/auth/books
 router.get('/book/:id', async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
-    if (!book) {
-      return res.status(404).json({ message: 'Book not found' });
-    }
+    if (!book) return res.status(404).json({ message: 'Book not found' });
     res.json({ success: true, book });
   } catch (err) {
     console.error(err);
@@ -147,101 +113,120 @@ router.get('/book/:id', async (req, res) => {
   }
 });
 
-
-
-
-router.get('/books', async (req, res) => {
-  try {
-    const books = await Book.find(); // Assuming Book is your Mongoose model
-    res.json({ success: true, books });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch books' });
-  }
-});
-
-// DELETE /api/admin/book/:id
-// router.delete('/admin/book/:id', async (req, res) => {
-//   try {
-//     const book = await Book.findByIdAndDelete(req.params.id);
-//     // Optionally: delete from S3 here using SDK
-//     res.json({ success: true, message: 'Book deleted' });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: 'Failed to delete book' });
-//   }
-// });
-
-
-
-
 router.delete('/admin/book/:id', async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
-    if (!book) {
-      return res.status(404).json({ success: false, message: 'Book not found' });
-    }
+    if (!book) return res.status(404).json({ success: false, message: 'Book not found' });
 
-    // Extract S3 keys
-    const objectsToDelete = [];
-
-    if (book.coverUrl) {
-      const coverKey = book.coverUrl.split('.com/')[1];
-      if (coverKey) objectsToDelete.push({ Key: coverKey });
-    }
-
+    const deleteObjects = [];
+    if (book.coverUrl) deleteObjects.push({ Key: book.coverUrl.split('.com/')[1] });
     book.chapters.forEach(ch => {
-      if (ch.pdfUrl) {
-        const pdfKey = ch.pdfUrl.split('.com/')[1];
-        if (pdfKey) objectsToDelete.push({ Key: pdfKey });
-      }
+      if (ch.pdfUrl) deleteObjects.push({ Key: ch.pdfUrl.split('.com/')[1] });
     });
 
-    // Delete from S3
-    if (objectsToDelete.length > 0) {
-      const deleteCommand = new DeleteObjectsCommand({
+    if (deleteObjects.length) {
+      await s3.send(new DeleteObjectsCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
-        Delete: {
-          Objects: objectsToDelete,
-          Quiet: false
-        }
-      });
-      await s3.send(deleteCommand);
+        Delete: { Objects: deleteObjects }
+      }));
     }
 
-    // Delete from MongoDB
     await Book.findByIdAndDelete(req.params.id);
-
-    res.json({ success: true, message: 'Book and files deleted from DB & S3' });
-
+    res.json({ success: true, message: 'Book and files deleted' });
   } catch (err) {
-    console.error('Error deleting book:', err);
-    res.status(500).json({ success: false, message: 'Failed to delete book or files' });
+    console.error('Delete error:', err);
+    res.status(500).json({ success: false, message: 'Delete failed' });
   }
 });
 
-
-router.put('/admin/book/:id', async (req, res) => {
+router.put('/admin/book/:id', upload.any(), async (req, res) => {
   try {
-    const { name, subject, tags, contents, chapters } = req.body;
-    const book = await Book.findByIdAndUpdate(
-      req.params.id,
-      { name, subject, tags, contents, chapters },
-      { new: true }
-    );
+    const { name, subject, tags, contents } = req.body;
+    const chaptersMeta = JSON.parse(req.body.chapters);
+    const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).json({ message: 'Book not found' });
-    res.json({ message: 'Book updated successfully', book });
+
+    // Handle cover
+    const coverFile = req.files.find(f => f.fieldname === 'cover');
+    if (coverFile) {
+      if (book.coverUrl) {
+        await s3.send(new DeleteObjectsCommand({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Delete: { Objects: [{ Key: book.coverUrl.split('.com/')[1] }] }
+        }));
+      }
+      const coverKey = `books/${Date.now()}-${coverFile.originalname}`;
+      book.coverUrl = await uploadFileToS3(coverFile.buffer, coverKey, coverFile.mimetype);
+    }
+
+    // Handle chapters
+    const existingMap = {};
+    book.chapters.forEach(ch => existingMap[ch._id?.toString()] = ch);
+    const updatedChapters = [];
+    const deleteKeys = [];
+
+    // ✅ Use for...of + await for proper async handling
+    for (let idx = 0; idx < chaptersMeta.length; idx++) {
+      const meta = chaptersMeta[idx];
+
+      if (meta._id && existingMap[meta._id]) {
+        // Existing chapter
+        const ch = existingMap[meta._id];
+        ch.name = meta.name;
+        ch.description = meta.description;
+        ch.price = meta.price;
+        ch.order = idx;
+        updatedChapters.push(ch);
+        delete existingMap[meta._id];
+      } else {
+        // New chapter
+        let pdfUrl = '';
+        const pdfFile = req.files.find(f => f.originalname === meta.uploadedFileName);
+        if (pdfFile) {
+          const pdfKey = `books/chapters/${Date.now()}-${pdfFile.originalname}`;
+          pdfUrl = await uploadFileToS3(pdfFile.buffer, pdfKey, pdfFile.mimetype);
+        }
+
+        updatedChapters.push({
+          name: meta.name,
+          description: meta.description,
+          price: meta.price,
+          order: idx,
+          pdfUrl
+        });
+      }
+    }
+
+    // Handle deletions
+    for (const ch of Object.values(existingMap)) {
+      if (ch.pdfUrl) {
+        deleteKeys.push({ Key: ch.pdfUrl.split('.com/')[1] });
+      }
+    }
+
+    if (deleteKeys.length) {
+      await s3.send(new DeleteObjectsCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Delete: { Objects: deleteKeys }
+      }));
+    }
+
+    // Final book update
+    book.name = name;
+    book.subject = subject;
+    book.tags = tags;
+    book.contents = contents;
+    book.chapters = updatedChapters;
+    book.price = updatedChapters.reduce((sum, ch) => sum + Number(ch.price || 0), 0);
+
+    await book.save();
+    res.json({ message: '✅ Book updated', book });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Update failed' });
+    console.error('Update error:', err);
+    res.status(500).json({ message: '❌ Update failed' });
   }
 });
 
-
-
-
-
-
-
-// router.post('/admin/login', adminLogin); 
 
 module.exports = router;
-/////////previous
