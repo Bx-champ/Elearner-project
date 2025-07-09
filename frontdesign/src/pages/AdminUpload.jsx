@@ -159,24 +159,30 @@ export default function AdminUpload({ onNext }) {
     tags: '',
   });
   const [coverPage, setCoverPage] = useState(null);
+  const [bookPdf, setBookPdf] = useState(null);
+
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    if (!coverPage) return alert("Please upload the cover page");
-    if (!formData.name || !formData.contents || !formData.subject) {
-      return alert("Please fill all required fields");
-    }
+ const handleNext = (e) => {
+  e.preventDefault();
+  
+  if (!coverPage) return alert("Please upload the cover page");
+  if (!bookPdf) return alert("Please upload the complete book PDF");
+  if (!formData.name || !formData.contents || !formData.subject) {
+    return alert("Please fill all required fields");
+  }
 
-    // Pass data to the next phase (ChapterUploader)
-    onNext({
-      ...formData,
-      coverPage,
-    });
-  };
+  // Pass data to the next phase (Chapter Metadata Phase)
+  onNext({
+    ...formData,
+    coverPage,
+    bookPdf
+  }, bookPdf); // second arg passed separately too for flexibility
+};
+
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] pt-20 px-4 md:px-12 pb-10">
@@ -190,11 +196,20 @@ export default function AdminUpload({ onNext }) {
           <Input label="Tags / Category" name="tags" value={formData.tags} onChange={handleChange} />
 
           <UploadBox
-            title="Cover Page"
-            file={coverPage}
-            onChange={setCoverPage}
-            accept="image/*"
-          />
+   title="Cover Page"
+   file={coverPage}
+   onChange={setCoverPage}
+   accept="image/*"
+/>
+
+<UploadBox
+   title="Complete Book PDF"
+   file={bookPdf}
+   onChange={setBookPdf}
+   accept="application/pdf"
+/>
+
+
 
           <button
             type="submit"

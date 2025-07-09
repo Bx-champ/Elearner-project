@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
 const Book = require('../models/Book');
+const ChapterAccessRequest = require('../models/ChapterAccessRequest');
 require('dotenv').config();
 
 const router = express.Router();
@@ -55,7 +56,14 @@ router.post('/signin', async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token, role, message: `${role} login success` });
+    const userInfo = {
+  _id: user._id,
+  name: user.name,
+  email: user.email
+};
+
+res.json({ token, role, user: userInfo, message: `${role} login success` });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
@@ -229,4 +237,82 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
 });
 
 
+router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
+  try {
+    const { bookId, chapterId } = req.params;
+    const book = await Book.findById(bookId);
+    if (!book) return res.status(404).json({ message: 'Book not found' });
+
+    const chapter = book.chapters.id(chapterId);
+    if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+    res.json({
+      pdfUrl: book.pdfUrl,
+      fromPage: chapter.fromPage,
+      toPage: chapter.toPage,
+      name: chapter.name,
+      description: chapter.description,
+    });
+  } catch (err) {
+    console.error('Error fetching chapter preview:', err);
+    res.status(500).json({ message: 'Failed to load chapter preview' });
+  }
+});
+
+
+
+
+// POST: Request access to chapters
+router.post('/request-access', async (req, res) => {
+  try {
+    // const { userId, bookId, chapterIds } = req.body;
+
+    const token = req.headers.authorization?.split(' ')[1];
+if (!token) return res.status(401).json({ message: 'No token provided' });
+
+let decoded;
+try {
+  decoded = jwt.verify(token, process.env.JWT_SECRET);
+} catch (err) {
+  return res.status(401).json({ message: 'Invalid token' });
+}
+
+const userId = decoded.id;
+const { bookId, chapterIds } = req.body;
+
+
+    if (!userId || !bookId || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+      return res.status(400).json({ message: 'Invalid request payload' });
+    }
+
+    const existingRequest = await ChapterAccessRequest.findOne({
+      userId,
+      bookId,
+      chapters: { $all: chapterIds },
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      return res.status(409).json({ message: 'Already requested access for selected chapters' });
+    }
+
+    const request = new ChapterAccessRequest({
+      userId,
+      bookId,
+      chapters: chapterIds
+    });
+
+    await request.save();
+
+    res.status(201).json({ message: '✅ Access request submitted', request });
+  } catch (err) {
+    console.error('❌ Access request error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
+
+
+
+

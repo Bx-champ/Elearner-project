@@ -11,34 +11,32 @@ export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
       setMessage('Uploading book data...');
 
       const formData = new FormData();
-      
-      // Attach book fields
+
+      // ✅ Add book fields
       formData.append('name', bookData.name);
       formData.append('contents', bookData.contents);
       formData.append('subject', bookData.subject);
       formData.append('tags', bookData.tags);
-      
-      // Attach cover file
+
+      // ✅ Add cover and book PDF
       formData.append('cover', bookData.coverPage);
+      formData.append('pdf', bookData.bookPdf);
 
-      // Attach chapter files
-      chapterData.chapters.forEach(ch => {
-        formData.append('chapters', ch.file);
-      });
+      // ✅ Include chapter price and other metadata
+      const chaptersMeta = chapterData.chapters.map((ch, index) => ({
+        name: ch.name,
+        description: ch.description,
+        fromPage: ch.fromPage,
+        toPage: ch.toPage,
+        price: ch.price, // ✅ Needed for total book price
+        order: index,
+      }));
 
-      // Attach chapter metadata
-      formData.append('chaptersMeta', JSON.stringify(
-        chapterData.chapters.map((ch, index) => ({
-          name: ch.name,
-          description: ch.description,
-          price: ch.price,
-          order: index
-        }))
-      ));
+      formData.append('chaptersMeta', JSON.stringify(chaptersMeta));
 
-      // Send to backend
+      // ✅ Submit to backend
       const res = await axios.post('http://localhost:5000/api/admin/save-book', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       setMessage('✅ Book uploaded successfully!');
@@ -59,13 +57,13 @@ export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
         <div className="space-y-2">
           <p><strong>Book:</strong> {bookData.name}</p>
           <p><strong>Subject:</strong> {bookData.subject}</p>
-          <p><strong>Total Price:</strong> ₹{chapterData.totalPrice}</p>
+          <p><strong>Total Price:</strong> ₹{chapterData.price}</p>
         </div>
 
         <div className="mt-4 space-y-2">
           {chapterData.chapters.map((ch, idx) => (
             <div key={idx} className="p-2 border rounded">
-              <p><strong>{idx + 1}. {ch.name}</strong> — ₹{ch.price}</p>
+              <p><strong>{idx + 1}. {ch.name}</strong> — Pages {ch.fromPage} to {ch.toPage} • ₹{ch.price}</p>
               <p className="text-sm text-gray-500">{ch.description}</p>
             </div>
           ))}

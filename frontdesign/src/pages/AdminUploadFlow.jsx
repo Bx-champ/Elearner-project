@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import AdminUpload from './AdminUpload';
-import ChapterUploader from './ChapterUploader';
+// import ChapterUploader from './ChapterUploader';
 import AdminUploadFinalSubmit from './AdminUploadFinalSubmit';
+import ChapterMetaEditor from './ChapterMetaEditor';
 
 export default function AdminUploadFlow() {
   const [phase, setPhase] = useState('book');
@@ -19,14 +20,16 @@ export default function AdminUploadFlow() {
         />
       )}
 
-      {phase === 'chapters' && (
-        <ChapterUploader
-          onDone={(data) => {
-            setChapterData(data);
-            setPhase('final');
-          }}
-        />
-      )}
+    {phase === 'chapters' && (
+  <ChapterMetaEditor
+    bookPdf={bookData.bookPdf}
+    onDone={(chapterMeta) => {
+      setChapterData(chapterMeta);
+      setPhase('final');
+    }}
+  />
+)}
+
 
       {phase === 'final' && (
         <AdminUploadFinalSubmit

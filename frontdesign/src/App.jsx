@@ -20,11 +20,17 @@ import AdminUploadFlow from './pages/AdminUploadFlow';
 import EditBook from './pages/EditBook';
 import AdminBookChapters from './pages/AdminBookChapters';
 import UserBookChapters from './pages/UserBookChapters';
+import ChapterPreview from './pages/ChapterPreview';
 
 function App() {
-  const { role } = useContext(AuthContext);
-  console.log(role);
+  const { role, user, loading } = useContext(AuthContext);
 
+  console.log("Role from AuthContext:", role);
+console.log("User from AuthContext:", user);
+console.log("Loading status:", loading);
+
+
+  if (loading) return <div className="text-center mt-20 text-lg">Loading...</div>;
   return (
     <div className="min-h-screen bg-[#f4f2ec] text-black">
       {role === 'admin' && <AdminNavbar />}
@@ -46,6 +52,7 @@ function App() {
         <Route path="/admin/edit/:id" element={<EditBook />} />
         <Route path="/admin/book/:id" element={<AdminBookChapters />} />
         <Route path="/user/book/:id" element={<UserBookChapters />} />
+        <Route path="/admin/book/:bookId/chapter/:chapterId/preview" element={<ChapterPreview />} />
 
       </Routes>
     </div>

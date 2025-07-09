@@ -36,10 +36,11 @@ export default function SignIn() {
         password
       });
 
-      const { token, role } = res.data;
+      
+const { token, user, role } = res.data;
+localStorage.setItem('token', token);
+login(user, role); // ✅ Correctly update both user and role in context
 
-      localStorage.setItem('token', token); // store token
-      login(role); // update React Context
 
       // Redirect based on role
       if (role === 'admin') {

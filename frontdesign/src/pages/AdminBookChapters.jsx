@@ -61,13 +61,6 @@ export default function AdminBookChapters() {
           >
             ← Back to dashboard
           </Link>
-
-          {/* <Link
-            to={`/admin/edit/${book._id}`}
-            className="inline-flex bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full px-4 py-1 shadow items-center gap-1"
-          >
-            <Pencil className="w-4 h-4" /> Edit Book
-          </Link> */}
         </div>
       </motion.div>
 
@@ -120,6 +113,15 @@ export default function AdminBookChapters() {
                     ) : (
                       <span className="text-xs text-gray-400">No PDF</span>
                     )}
+
+                    {/* ✅ Preview Button */}
+                    <Link
+                      to={`/admin/book/${book._id}/chapter/${ch._id}/preview`}
+                      className="text-green-600 hover:text-green-800 text-xs border border-green-600 rounded-full px-3 py-1"
+                    >
+                      Preview
+                    </Link>
+
                     <button
                       onClick={() => setActiveChapter(activeChapter === idx ? null : idx)}
                       className="text-gray-600 hover:text-gray-900"
