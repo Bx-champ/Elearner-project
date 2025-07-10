@@ -21,6 +21,8 @@ import EditBook from './pages/EditBook';
 import AdminBookChapters from './pages/AdminBookChapters';
 import UserBookChapters from './pages/UserBookChapters';
 import ChapterPreview from './pages/ChapterPreview';
+import AdminAccessRequests from './pages/AdminAccessRequests';
+import AdminAccessManager from './pages/AdminAccessManager';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
@@ -53,6 +55,9 @@ console.log("Loading status:", loading);
         <Route path="/admin/book/:id" element={<AdminBookChapters />} />
         <Route path="/user/book/:id" element={<UserBookChapters />} />
         <Route path="/admin/book/:bookId/chapter/:chapterId/preview" element={<ChapterPreview />} />
+        <Route path="/admin/access-requests" element={<AdminAccessRequests />} />
+        <Route path="/preview/:bookId/:chapterId" element={<ChapterPreview />} />
+        <Route path="/admin/access-manager" element={<AdminAccessManager />} />
 
       </Routes>
     </div>

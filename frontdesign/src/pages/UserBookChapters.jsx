@@ -13,6 +13,34 @@ export default function UserBookChapters() {
   const [activeChapter, setActiveChapter] = useState(null);
   const [selectedChapters, setSelectedChapters] = useState([]);
 
+  // Fetch book details by ID
+  // Use useEffect to load book data when component mounts    
+  const [approvedChapters, setApprovedChapters] = useState([]);
+
+useEffect(() => {
+  const fetchApprovedChapters = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/auth/user/chapter-access/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+      setApprovedChapters(res.data.approvedChapters);
+    } catch (err) {
+      console.error('Error fetching approved chapters', err);
+    }
+  };
+
+  if (user?.token) {
+    fetchApprovedChapters();
+  }
+}, [id, user]);
+
+
+
   useEffect(() => {
     axios
       .get(`http://localhost:5000/api/auth/book/${id}`)
@@ -39,8 +67,12 @@ export default function UserBookChapters() {
       alert('Please select at least one chapter.');
       return;
     }
-
+    if (!user || !user.token) {
+      alert('Please log in to request access'); 
+      return;
+    }
     try {
+
       const res = await axios.post(
         'http://localhost:5000/api/auth/request-access',
         {
@@ -150,15 +182,27 @@ export default function UserBookChapters() {
                   </div>
 
                   <div className="flex flex-wrap gap-3 justify-end items-center">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectedChapters.includes(ch._id)}
-                        onChange={() => handleCheckboxToggle(ch._id)}
-                        className="accent-blue-600"
-                      />
-                      Request Access
-                    </label>
+                   {
+  approvedChapters.includes(ch._id) ? (
+    <Link
+      to={`/preview/${book._id}/${ch._id}`}
+      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
+    >
+      ✅ View PDF
+    </Link>
+  ) : (
+    <label className="flex items-center gap-2 text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={selectedChapters.includes(ch._id)}
+        onChange={() => handleCheckboxToggle(ch._id)}
+        className="accent-blue-600"
+      />
+      Request Access
+    </label>
+  )
+}
+
 
                     <button
                       onClick={() => setActiveChapter(activeChapter === idx ? null : idx)}

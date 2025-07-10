@@ -26,7 +26,7 @@ export default function AdminBookChapters() {
   if (!book) return <p className="text-center mt-10">Book not found</p>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f4f2ec] to-[#e8e6df] pt-20 pb-10 px-4 sm:px-6 md:px-8 flex flex-col md:flex-row gap-6 relative">
+    <div className="min-h-screen bg-gradient-to-br from-[#f4f2ec] to-[#e8e6df] pt-[100px] pb-10 px-4 sm:px-6 md:px-8 flex flex-col md:flex-row gap-6 relative">
 
       {activeChapter !== null && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/20 z-10 pointer-events-none"></div>

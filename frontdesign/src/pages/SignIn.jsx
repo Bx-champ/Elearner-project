@@ -36,13 +36,19 @@ export default function SignIn() {
         password
       });
 
-      
-const { token, user, role } = res.data;
-localStorage.setItem('token', token);
-login(user, role); // ✅ Correctly update both user and role in context
+      const { token, user, role } = res.data;
 
+      // ✅ Combine token into user object
+      const userWithToken = { ...user, token };
 
-      // Redirect based on role
+      // ✅ Save tokenized user to localStorage
+      localStorage.setItem('user', JSON.stringify(userWithToken));
+      localStorage.setItem('role', role);
+
+      // ✅ Save into context
+      login(userWithToken, role);
+
+      // ✅ Navigate based on role
       if (role === 'admin') {
         navigate('/admin/dashboard');
       } else if (role === 'vendor') {

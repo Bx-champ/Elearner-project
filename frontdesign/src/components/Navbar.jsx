@@ -1,3 +1,125 @@
+// import { Link, useLocation } from 'react-router-dom';
+// import { useState } from 'react';
+// import { Menu, X } from 'lucide-react';
+
+// export default function Navbar() {
+//   const location = useLocation();
+//   const currentPath = location.pathname;
+//   const [menuOpen, setMenuOpen] = useState(false);
+
+//   const navLinks = [
+//     { path: '/', label: 'home' },
+//     { path: '/about', label: 'about us' },
+//     { path: '/contact', label: 'contact us' },
+//     { path: '/signin', label: 'sign in' },
+//     { path: '/signup', label: 'sign up' },
+//   ];
+
+//   const toggleMenu = () => setMenuOpen(!menuOpen);
+//   const closeMenu = () => setMenuOpen(false);
+
+//   return (
+//     <>
+//       <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5">
+//         <div className="flex justify-between items-center md:flex">
+//           {/* Logo */}
+//           <div className="text-2xl font-bold basis-1/4 md:basis-1/8 lg:basis-1/4 flex-shrink">LOGO</div>
+
+//           {/* Hamburger Icon for Mobile */}
+//           <div className="md:hidden">
+//             <button onClick={toggleMenu}>
+//               {menuOpen ? <X size={28} /> : <Menu size={28} />}
+//             </button>
+//           </div>
+
+//           {/* Nav Links - Desktop */}
+//          <div className="hidden md:flex basis-1/2 md:basis-6/8 lg:basis-1/2 flex-shrink-0 justify-evenly gap-10 lg:gap-6 md:gap-2 sm:gap-2 text-xl px-6">
+
+//             {navLinks.map((link) => {
+//               const isActive = currentPath === link.path;
+//               return (
+//                 <Link
+//                   key={link.path}
+//                   to={link.path}
+//                   className={`relative group cursor-pointer ${
+//                     isActive ? 'text-[#4457ff] font-semibold' : ''
+//                   }`}
+//                 >
+//                   <span>{link.label}</span>
+//                   <span
+//                     className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
+//                       isActive
+//                         ? 'w-full bg-[#4457ff]'
+//                         : 'w-0 bg-black group-hover:w-full'
+//                     }`}
+//                   ></span>
+//                 </Link>
+//               );
+//             })}
+//           </div>
+
+//           {/* Vendor Register Button - Desktop only */}
+//           <div className="basis-1/4 md:basis-1/8 lg:basis-1/4 flex justify-end hidden md:flex">
+//             <Link
+//               to="/register/vendor"
+//               onClick={closeMenu}
+//               className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+//             >
+//               Register as Vendor
+//             </Link>
+//           </div>
+//         </div>
+
+//         {/* Mobile Dropdown Menu */}
+//         {menuOpen && (
+//           <div className="flex flex-col mt-4 gap-4 md:hidden text-xl relative z-50 animate-slide-down">
+//             {navLinks.map((link) => {
+//               const isActive = currentPath === link.path;
+//               return (
+//                 <Link
+//                   key={link.path}
+//                   to={link.path}
+//                   onClick={closeMenu}
+//                   className={`relative group cursor-pointer ${
+//                     isActive ? 'text-[#4457ff] font-semibold' : ''
+//                   }`}
+//                 >
+//                   <span>{link.label}</span>
+//                   <span
+//                     className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
+//                       isActive
+//                         ? 'w-full bg-[#4457ff]'
+//                         : 'w-0 bg-black group-hover:w-full'
+//                     }`}
+//                   ></span>
+//                 </Link>
+//               );
+//             })}
+
+//             {/* Vendor Register Button - Mobile */}
+//             <Link
+//               to="/register/vendor"
+//               onClick={closeMenu}
+//               className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+//             >
+//               Register as Vendor
+//             </Link>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* Glass Blur Overlay */}
+//       {menuOpen && (
+//         <div
+//           onClick={closeMenu}
+//           className="fixed top-0 left-0 w-full h-full backdrop-blur-md bg-black/10 z-40"
+//         ></div>
+//       )}
+//     </>
+//   );
+// }
+
+
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
@@ -8,22 +130,40 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navLinks = [
-    { path: '/', label: 'home' },
-    { path: '/about', label: 'about us' },
-    { path: '/contact', label: 'contact us' },
-    { path: '/signin', label: 'sign in' },
-    { path: '/signup', label: 'sign up' },
+    { path: '/', label: 'Home' },
+    { path: '/about', label: 'About Us' },
+    { path: '/contact', label: 'Contact Us' },
+    { path: '/signin', label: 'Sign In' },
+    { path: '/signup', label: 'Sign Up' },
   ];
 
   const toggleMenu = () => setMenuOpen(!menuOpen);
   const closeMenu = () => setMenuOpen(false);
 
+  const NavItem = ({ path, label }) => {
+    const isActive = currentPath === path;
+
+    return (
+      <Link to={path} onClick={closeMenu}>
+        <div
+          className={`relative px-2 py-1 rounded transition-all duration-300 text-lg font-medium ${
+            isActive
+              ? 'text-[#4457ff]'
+              : 'text-[#16355a] hover:text-white hover:shadow-[0_0_10px_2px_rgba(68,87,255,0.5)] hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500'
+          }`}
+        >
+          {label}
+        </div>
+      </Link>
+    );
+  };
+
   return (
     <>
-      <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5">
+      <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5 shadow-md">
         <div className="flex justify-between items-center md:flex">
           {/* Logo */}
-          <div className="text-2xl font-bold basis-1/4 md:basis-1/8 lg:basis-1/4 flex-shrink">LOGO</div>
+          <div className="text-2xl font-extrabold basis-1/4 md:basis-1/8 lg:basis-1/4">📚 LOGO</div>
 
           {/* Hamburger Icon for Mobile */}
           <div className="md:hidden">
@@ -33,74 +173,34 @@ export default function Navbar() {
           </div>
 
           {/* Nav Links - Desktop */}
-         <div className="hidden md:flex basis-1/2 md:basis-6/8 lg:basis-1/2 flex-shrink-0 justify-evenly gap-10 lg:gap-6 md:gap-2 sm:gap-2 text-xl px-6">
-
-            {navLinks.map((link) => {
-              const isActive = currentPath === link.path;
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`relative group cursor-pointer ${
-                    isActive ? 'text-[#4457ff] font-semibold' : ''
-                  }`}
-                >
-                  <span>{link.label}</span>
-                  <span
-                    className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
-                      isActive
-                        ? 'w-full bg-[#4457ff]'
-                        : 'w-0 bg-black group-hover:w-full'
-                    }`}
-                  ></span>
-                </Link>
-              );
-            })}
+          <div className="hidden md:flex basis-1/2 md:basis-6/8 lg:basis-1/2 justify-evenly gap-6 text-lg px-6">
+            {navLinks.map((link) => (
+              <NavItem key={link.path} path={link.path} label={link.label} />
+            ))}
           </div>
 
-          {/* Vendor Register Button - Desktop only */}
-          <div className="basis-1/4 md:basis-1/8 lg:basis-1/4 flex justify-end hidden md:flex">
+          {/* Vendor Register Button - Desktop */}
+          <div className="basis-1/4 md:basis-1/8 lg:basis-1/4 hidden md:flex justify-end">
             <Link
               to="/register/vendor"
               onClick={closeMenu}
-              className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded shadow hover:shadow-lg transition-all duration-300"
             >
               Register as Vendor
             </Link>
           </div>
         </div>
 
-        {/* Mobile Dropdown Menu */}
+        {/* Mobile Dropdown */}
         {menuOpen && (
-          <div className="flex flex-col mt-4 gap-4 md:hidden text-xl relative z-50 animate-slide-down">
-            {navLinks.map((link) => {
-              const isActive = currentPath === link.path;
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={closeMenu}
-                  className={`relative group cursor-pointer ${
-                    isActive ? 'text-[#4457ff] font-semibold' : ''
-                  }`}
-                >
-                  <span>{link.label}</span>
-                  <span
-                    className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
-                      isActive
-                        ? 'w-full bg-[#4457ff]'
-                        : 'w-0 bg-black group-hover:w-full'
-                    }`}
-                  ></span>
-                </Link>
-              );
-            })}
-
-            {/* Vendor Register Button - Mobile */}
+          <div className="flex flex-col mt-4 gap-4 md:hidden text-lg relative z-50">
+            {navLinks.map((link) => (
+              <NavItem key={link.path} path={link.path} label={link.label} />
+            ))}
             <Link
               to="/register/vendor"
               onClick={closeMenu}
-              className="px-4 py-2 text-center bg-[#4457ff] text-white rounded hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded shadow hover:shadow-lg transition-all duration-300"
             >
               Register as Vendor
             </Link>
@@ -118,3 +218,9 @@ export default function Navbar() {
     </>
   );
 }
+
+
+
+
+
+

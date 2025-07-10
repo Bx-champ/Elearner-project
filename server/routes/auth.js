@@ -285,12 +285,13 @@ const { bookId, chapterIds } = req.body;
       return res.status(400).json({ message: 'Invalid request payload' });
     }
 
-    const existingRequest = await ChapterAccessRequest.findOne({
-      userId,
-      bookId,
-      chapters: { $all: chapterIds },
-      status: 'pending'
-    });
+   const existingRequest = await ChapterAccessRequest.findOne({
+  userId,
+  bookId,
+  status: 'pending',
+  chapters: { $in: chapterIds }
+});
+
 
     if (existingRequest) {
       return res.status(409).json({ message: 'Already requested access for selected chapters' });
@@ -310,6 +311,211 @@ const { bookId, chapterIds } = req.body;
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// GET: All access requests for admin
+router.get('/admin/access-requests', async (req, res) => {
+  try {
+    const requests = await ChapterAccessRequest.find()
+      .populate('userId', 'name email')
+      .populate('bookId', 'name')
+      .sort({ requestedAt: -1 });
+    res.json({ success: true, requests });
+  } catch (err) {
+    console.error('Error fetching access requests:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// PUT: Admin approves or rejects a request
+router.put('/admin/access-request-status', async (req, res) => {
+  try {
+    const { requestId, status } = req.body;
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const request = await ChapterAccessRequest.findById(requestId);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    request.status = status;
+    await request.save();
+
+    res.json({ message: `✅ Request ${status}` });
+  } catch (err) {
+    console.error('Status update error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// GET: User's approved chapter access for a book
+router.get('/user/chapter-access/:bookId', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const requests = await ChapterAccessRequest.find({
+      userId: decoded.id,
+      bookId: req.params.bookId,
+      status: 'approved'
+    });
+
+    const approvedChapters = requests.flatMap(r => r.chapters);
+    res.json({ approvedChapters });
+  } catch (err) {
+    console.error('Error fetching chapter access:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/admin/users-access', async (req, res) => {
+  try {
+    const approvedRequests = await ChapterAccessRequest.find({ status: 'approved' })
+      .populate('userId', 'name email')
+      .populate('bookId', 'name')
+      .lean();
+
+    const userAccessMap = {};
+
+    approvedRequests.forEach(req => {
+      const userId = req.userId._id.toString();
+      if (!userAccessMap[userId]) {
+        userAccessMap[userId] = {
+          user: req.userId,
+          access: []
+        };
+      }
+
+      req.chapters.forEach(chapterId => {
+        userAccessMap[userId].access.push({
+          bookId: req.bookId._id,
+          bookName: req.bookId.name,
+          chapterId
+        });
+      });
+    });
+
+    const result = Object.values(userAccessMap);
+    res.json({ success: true, users: result });
+  } catch (err) {
+    console.error('Error fetching user access info:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/admin/revoke-chapter-access', async (req, res) => {
+  const { userId, bookId, chapterId } = req.body;
+  if (!userId || !bookId || !chapterId) {
+    return res.status(400).json({ message: 'Missing required parameters' });
+  }
+
+  try {
+    const approvedRequest = await ChapterAccessRequest.findOne({
+      userId,
+      bookId,
+      status: 'approved',
+      chapters: chapterId
+    });
+
+    if (!approvedRequest) {
+      return res.status(404).json({ message: 'No approved access found for the user and chapter' });
+    }
+
+    approvedRequest.chapters = approvedRequest.chapters.filter(id => id.toString() !== chapterId);
+    
+    if (approvedRequest.chapters.length === 0) {
+      await ChapterAccessRequest.findByIdAndDelete(approvedRequest._id);
+    } else {
+      await approvedRequest.save();
+    }
+
+    res.json({ message: '✅ Chapter access revoked' });
+  } catch (err) {
+    console.error('Error revoking chapter access:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET: Admin view - All approved user chapter accesses
+router.get('/admin/access-management', async (req, res) => {
+  try {
+    const allApprovedRequests = await ChapterAccessRequest.find({ status: 'approved' })
+      .populate('userId', 'name email')
+      .populate('bookId', 'name chapters');
+
+    const accessData = [];
+
+    allApprovedRequests.forEach(req => {
+      const existing = accessData.find(entry => entry.user._id.toString() === req.userId._id.toString());
+
+      const chapterDetails = req.chapters.map(chId => {
+        const chapter = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
+        return {
+          chapterId: chId,
+          chapterName: chapter?.name || 'Unknown',
+          bookName: req.bookId.name,
+          bookId: req.bookId._id,
+          accessId: req._id, // for revoking later
+        };
+      });
+
+      if (existing) {
+        existing.chapters.push(...chapterDetails);
+      } else {
+        accessData.push({
+          user: {
+            _id: req.userId._id,
+            name: req.userId.name,
+            email: req.userId.email
+          },
+          chapters: chapterDetails
+        });
+      }
+    });
+
+    res.json(accessData);
+  } catch (err) {
+    console.error("❌ Failed to load access-management:", err);
+    res.status(500).json({ message: 'Server error while loading access data' });
+  }
+});
+
+
+// DELETE: Admin revokes access for a chapter
+// DELETE: Admin revokes access for a chapter
+router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
+  try {
+    const { accessId, chapterId } = req.params;
+    const accessRequest = await ChapterAccessRequest.findById(accessId);
+    if (!accessRequest) {
+      return res.status(404).json({ message: 'Access request not found' });
+    }
+
+    if (accessRequest.chapters.length === 1 || !chapterId) {
+      await ChapterAccessRequest.findByIdAndDelete(accessId);
+    } else {
+      accessRequest.chapters = accessRequest.chapters.filter(
+        chId => chId.toString() !== chapterId
+      );
+      await accessRequest.save();
+    }
+
+    res.json({ message: '✅ Access revoked' });
+  } catch (err) {
+    console.error("❌ Revoke access error:", err);
+    res.status(500).json({ message: 'Server error while revoking access' });
+  }
+});
+
+
+
+
+
+
+
+
 
 module.exports = router;
 

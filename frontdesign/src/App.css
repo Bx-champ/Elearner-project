@@ -1,1 +1,12 @@
 @import "tailwindcss";
+.blinking-cursor {
+  animation: blink 1s steps(2, start) infinite;
+  color: #4457ff;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
