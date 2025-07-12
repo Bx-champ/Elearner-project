@@ -1,8 +1,11 @@
 const express = require('express');
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const Notification = require('../models/Notification');
+
 const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
@@ -20,6 +23,31 @@ const s3 = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
   }
 });
+
+
+//////////////////////////////////////////////////////////////////////////////
+const createNotification = async ({ userId, message, type }, req = null) => {
+  try {
+    const notification = await new Notification({ userId, message, type }).save();
+
+    if (req) {
+      const io = req.app.get('io');
+      const userSockets = req.app.get('userSockets');
+      const socketId = userSockets.get(userId.toString());
+      if (io && socketId) io.to(socketId).emit('notification', notification);
+    }
+
+    return notification;
+  } catch (err) {
+    console.error('🔔 Notification error:', err.message);
+  }
+};
+
+
+////////////////////////////////////////////////////////////////////////////
+
+
+
 
 // Multer setup
 const upload = multer({ storage: multer.memoryStorage() });
@@ -317,7 +345,17 @@ const { bookId, chapterIds } = req.body;
     });
 
     await request.save();
+//////////////////////////////////////////////////////////////
+    const book = await Book.findById(bookId);
+const chapterNames = book.chapters
+  .filter(ch => chapterIds.includes(ch._id.toString()))
+  .map(ch => ch.name);
 
+const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+
+await createNotification({ userId, type: 'requestSubmitted', message }, req);
+
+/////////////////////////////////////////////////////////////////////////
     res.status(201).json({ message: '✅ Access request submitted', request });
   } catch (err) {
     console.error('❌ Access request error:', err);
@@ -385,6 +423,22 @@ router.put('/admin/access-request-status', async (req, res) => {
 
     request.status = status;
     await request.save();
+
+   ///////////////////////////////////////////////////////////
+   const book = await Book.findById(request.bookId);
+const chapterNames = book.chapters
+  .filter(ch => request.chapters.includes(ch._id.toString()))
+  .map(ch => ch.name);
+
+const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+
+await createNotification({ 
+  userId: request.userId, 
+  type: status, 
+  message 
+}, req);
+
+///////////////////////////////////////////////////////////////// 
 
     res.json({ message: `✅ Request ${status}` });
   } catch (err) {
@@ -625,7 +679,7 @@ router.get('/admin/access-management', async (req, res) => {
 
 
 // DELETE: Admin revokes access for a chapter
-// DELETE: Admin revokes access for a chapter
+// DELETE: Admin revokes access for a chapter////////////////////////////
 router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
   try {
     const { accessId, chapterId } = req.params;
@@ -633,6 +687,10 @@ router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
     if (!accessRequest) {
       return res.status(404).json({ message: 'Access request not found' });
     }
+
+    const userId = accessRequest.userId;
+    const book = await Book.findById(accessRequest.bookId);
+    const chapter = book?.chapters.find(ch => ch._id.toString() === chapterId);
 
     if (accessRequest.chapters.length === 1 || !chapterId) {
       await ChapterAccessRequest.findByIdAndDelete(accessId);
@@ -643,18 +701,18 @@ router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
       await accessRequest.save();
     }
 
+    // 🔔 Send notification
+    if (book && chapter) {
+      const message = `❌ Access revoked for "${chapter.name}" in "${book.name}"`;
+      await createNotification({ userId, type: 'revoked', message }, req);
+    }
+
     res.json({ message: '✅ Access revoked' });
   } catch (err) {
     console.error("❌ Revoke access error:", err);
     res.status(500).json({ message: 'Server error while revoking access' });
   }
 });
-
-
-
-
-
-
 
 
 // Inside auth.js or a new assignments.js
@@ -704,12 +762,25 @@ router.post('/admin/assign-chapters', async (req, res) => {
 
     await ChapterAssignment.insertMany(assignments);
 
+    // ✅ Step 4: Send Notifications to user per chapter
+    const book = await Book.findById(bookId);
+
+for (const chapterId of chapters) {
+  const chapter = book.chapters.find(ch => ch._id.toString() === chapterId.toString());
+  if (chapter) {
+    const message = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
+    await createNotification({ userId, type: 'assigned', message }, req);
+  }
+}
+/////////////////////////////////////////////////////////////////////////////////
+
     res.status(201).json({ message: '✅ Chapters assigned successfully with expiry' });
   } catch (err) {
     console.error('Assignment error:', err);
     res.status(500).json({ message: 'Server error while assigning chapters' });
   }
 });
+
 
 
 
@@ -876,12 +947,59 @@ router.delete('/admin/revoke-expiry-access/:userId/:bookId/:chapterId', async (r
   try {
     const deleted = await ChapterAssignment.findOneAndDelete({ userId, bookId, chapterId });
     if (!deleted) return res.status(404).json({ message: 'No expiry-based access found' });
+
+    // 🔔 Send notification
+    const book = await Book.findById(bookId);
+    const chapter = book?.chapters.find(ch => ch._id.toString() === chapterId);
+    if (book && chapter) {
+      const message = `⏳ Expiry-based access revoked for "${chapter.name}" in "${book.name}"`;
+      await createNotification({ userId, type: 'revoked', message }, req);
+    }
+
     res.json({ message: '✅ Expiry-based access revoked' });
   } catch (err) {
     console.error("Revoke expiry access error:", err);
     res.status(500).json({ message: 'Server error while revoking expiry-based access' });
   }
 });
+
+////////////////////////////////////////////
+router.get('/user/notifications', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const notifications = await Notification.find({ userId }).sort({ createdAt: -1 });
+    res.json({ success: true, notifications });
+  } catch (err) {
+    console.error('Notification fetch error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/user/notifications/mark-read', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    await Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } });
+
+    res.json({ success: true, message: 'Notifications marked as read' });
+  } catch (err) {
+    console.error('Notification mark-read error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+
 
 
 

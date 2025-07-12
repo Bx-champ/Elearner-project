@@ -92,7 +92,7 @@ export default function UserBookChapters() {
   if (!book) return <p className="text-center mt-10">Book not found</p>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f4f2ec] to-[#e8e6df] pt-20 pb-10 px-4 sm:px-6 md:px-8 flex flex-col md:flex-row gap-6 relative">
+    <div className="min-h-screen bg-gradient-to-br from-[#f4f2ec] to-[#e8e6df] pt-[100px] pb-10 px-4 sm:px-6 md:px-8 flex flex-col md:flex-row gap-6 relative">
       {activeChapter !== null && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/20 z-10 pointer-events-none"></div>
       )}
@@ -103,7 +103,7 @@ export default function UserBookChapters() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full md:w-1/3 bg-white rounded-2xl shadow-xl p-4 sticky md:top-20 self-start z-20"
       >
-        <div className="overflow-hidden rounded-xl">
+        {/* <div className="overflow-hidden rounded-xl">
           <motion.img
             src={book.coverUrl || 'https://via.placeholder.com/600x400?text=No+Cover'}
             alt={book.name}
@@ -111,7 +111,22 @@ export default function UserBookChapters() {
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3 }}
           />
-        </div>
+        </div> */}
+          <div className="rounded-xl bg-gray-100 flex items-center justify-center aspect-[3/4] overflow-hidden">
+  <motion.img
+    src={book.coverUrl || 'https://via.placeholder.com/600x400?text=No+Cover'}
+    alt={book.name}
+    className="w-full h-full object-contain p-2"
+    whileHover={{ scale: 1.02 }}
+    transition={{ duration: 0.3 }}
+  />
+</div>
+
+
+
+
+
+
         <h2 className="text-xl sm:text-2xl font-bold text-[#16355a] mt-3 mb-1">{book.name}</h2>
         <p className="text-sm text-gray-600 mb-1">{book.subject}</p>
         <p className="text-sm text-gray-500 mb-1">Tags: {book.tags || 'N/A'}</p>

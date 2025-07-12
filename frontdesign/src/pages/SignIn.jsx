@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
+import socket from '../socket'; // ✅ Import socket instance
 
 export default function SignIn() {
   const { login } = useContext(AuthContext);
@@ -41,14 +42,17 @@ export default function SignIn() {
       // ✅ Combine token into user object
       const userWithToken = { ...user, token };
 
-      // ✅ Save tokenized user to localStorage
+      // ✅ Save to localStorage
       localStorage.setItem('user', JSON.stringify(userWithToken));
       localStorage.setItem('role', role);
 
-      // ✅ Save into context
+      // ✅ Update auth context
       login(userWithToken, role);
 
-      // ✅ Navigate based on role
+      // ✅ Register socket for real-time notifications
+      socket.emit('register', user._id);
+
+      // ✅ Navigate by role
       if (role === 'admin') {
         navigate('/admin/dashboard');
       } else if (role === 'vendor') {
@@ -76,7 +80,7 @@ export default function SignIn() {
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {/* Email Input */}
+          {/* Email */}
           <div className="relative">
             <Mail className="absolute top-3 left-3 text-gray-400" size={20} />
             <input
@@ -91,7 +95,7 @@ export default function SignIn() {
             {errors.email && <p className="text-red-500 text-sm mt-1 ml-1">{errors.email}</p>}
           </div>
 
-          {/* Password Input */}
+          {/* Password */}
           <div className="relative">
             <Lock className="absolute top-3 left-3 text-gray-400" size={20} />
             <input
