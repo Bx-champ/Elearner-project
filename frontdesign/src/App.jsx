@@ -15,7 +15,6 @@ import VendorRegister from './pages/VendorRegister';
 import VendorDashboard from './pages/VendorDashboard';
 import VendorNavbar from './components/VendorNavbar';
 import UserNavbar from './components/UserNavbar';
-import AdminUpload from './pages/AdminUpload';
 import AdminUploadFlow from './pages/AdminUploadFlow';
 import EditBook from './pages/EditBook';
 import AdminBookChapters from './pages/AdminBookChapters';
@@ -23,23 +22,34 @@ import UserBookChapters from './pages/UserBookChapters';
 import ChapterPreview from './pages/ChapterPreview';
 import AdminAccessRequests from './pages/AdminAccessRequests';
 import AdminAccessManager from './pages/AdminAccessManager';
+import AdminActivityDashboard from './pages/AdminActivityDashboard';
+import MyFiles from './pages/MyFiles';
+import AdminAssignChapters from './pages/AdminAssignChapters';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
 
-  console.log("Role from AuthContext:", role);
-console.log("User from AuthContext:", user);
-console.log("Loading status:", loading);
+  // Debug logs (optional)
+  const DEBUG = false;
+  if (DEBUG) {
+    console.log("Role from AuthContext:", role);
+    console.log("User from AuthContext:", user);
+    console.log("Loading status:", loading);
+  }
 
+  if (loading) {
+    return <div className="text-center mt-20 text-lg">⏳ Checking session...</div>;
+  }
 
-  if (loading) return <div className="text-center mt-20 text-lg">Loading...</div>;
   return (
     <div className="min-h-screen bg-[#f4f2ec] text-black">
+      {/* Navbar Logic */}
       {role === 'admin' && <AdminNavbar />}
       {role === 'user' && <UserNavbar />}
       {role === 'vendor' && <VendorNavbar />}
-      {role === null && <Navbar/>}
+      {!role && <Navbar />}
 
+      {/* Routes */}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<AboutUs />} />
@@ -55,10 +65,12 @@ console.log("Loading status:", loading);
         <Route path="/admin/book/:id" element={<AdminBookChapters />} />
         <Route path="/user/book/:id" element={<UserBookChapters />} />
         <Route path="/admin/book/:bookId/chapter/:chapterId/preview" element={<ChapterPreview />} />
-        <Route path="/admin/access-requests" element={<AdminAccessRequests />} />
         <Route path="/preview/:bookId/:chapterId" element={<ChapterPreview />} />
+        <Route path="/admin/access-requests" element={<AdminAccessRequests />} />
         <Route path="/admin/access-manager" element={<AdminAccessManager />} />
-
+        <Route path="/admin/activity-report" element={<AdminActivityDashboard />} />
+        <Route path="/admin/assign-chapters" element={<AdminAssignChapters />} />
+        <Route path="/myfiles" element={<MyFiles />} />
       </Routes>
     </div>
   );

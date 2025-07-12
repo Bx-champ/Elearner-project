@@ -15,7 +15,7 @@ export default function UserDashboard() {
     <div className="min-h-screen bg-[#f4f2ec] pt-24 px-6 md:px-12">
       {/* <h2 className="text-3xl font-bold text-[#16355a] mb-8">📚 Your Books</h2> */}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-8">
         {books.map(book => (
           <div
       onClick={() => navigate(`/user/book/${book._id}`)}     
@@ -38,7 +38,7 @@ export default function UserDashboard() {
       <img
         src={book.coverUrl}
         alt={book.name}
-        className="rounded-xl transition-transform duration-500 group-hover:scale-105 group-hover:rotate-[0.5deg]"
+        className="rounded-xl transition-transform duration-500 group-hover:scale-105 "
       />
     </div>
 

@@ -3,6 +3,17 @@ import { createContext, useState, useEffect } from 'react';
 
 export const AuthContext = createContext();
 
+// ✅ Helper to check if token is expired
+const isTokenExpired = (token) => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now(); // exp is in seconds
+  } catch (err) {
+    console.warn('Invalid token:', err);
+    return true;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);         // Full user object
   const [role, setRole] = useState(null);         // Role like 'user', 'admin', 'vendor'
@@ -12,26 +23,35 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem('user');
     const storedRole = localStorage.getItem('role');
 
-    if (storedUser) setUser(JSON.parse(storedUser));
-    if (storedRole) setRole(storedRole);
+    if (storedUser && storedRole) {
+      const parsedUser = JSON.parse(storedUser);
+      const token = parsedUser?.token;
+
+      if (token && !isTokenExpired(token)) {
+        setUser(parsedUser);
+        setRole(storedRole);
+      } else {
+        console.warn('🔒 Token expired or invalid, logging out.');
+        localStorage.removeItem('user');
+        localStorage.removeItem('role');
+      }
+    }
 
     setLoading(false); // Context ready
   }, []);
 
   const login = (userData, userRole) => {
-  // Safety check
-  if (typeof userData !== 'object') {
-    console.warn("Expected user object but got:", userData);
-    return;
-  }
+    if (typeof userData !== 'object') {
+      console.warn("Expected user object but got:", userData);
+      return;
+    }
 
-  localStorage.setItem('user', JSON.stringify(userData));
-  localStorage.setItem('role', userRole);
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('role', userRole);
 
-  setUser(userData);
-  setRole(userRole);
-};
-
+    setUser(userData);
+    setRole(userRole);
+  };
 
   const logout = () => {
     localStorage.removeItem('user');

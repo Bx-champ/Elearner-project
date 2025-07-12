@@ -62,9 +62,16 @@ export default function AdminAccessRequests() {
                   <p className="text-sm text-gray-600">
                     👤 {req.userId?.name} ({req.userId?.email})
                   </p>
-                  <p className="text-sm text-gray-500">
-                    🧩 Chapters: {req.chapters.join(', ')}
-                  </p>
+                  <div className="flex flex-wrap gap-2 text-sm text-gray-700">
+  🧩 Chapters:
+  {req.chapterNames?.map((ch, i) => (
+    <span key={i} className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+      {ch}
+    </span>
+  )) || <span>Unknown</span>}
+</div>
+
+
                   <p className="text-xs text-gray-400">
                     Requested At: {new Date(req.requestedAt).toLocaleString()}
                   </p>

@@ -1,13 +1,16 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../authContext';
 import { Menu, X } from 'lucide-react';
+import axios from 'axios';
 
 export default function AdminNavbar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useContext(AuthContext);
+  const { user, logout } = useContext(AuthContext);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
   const currentPath = location.pathname;
 
   const handleLogout = () => {
@@ -23,7 +26,28 @@ export default function AdminNavbar() {
     { path: '/admin/upload', label: 'Upload' },
     { path: '/admin/access-requests', label: 'Requests' },
     { path: '/admin/access-manager', label: 'Manager' },
+    { path: '/admin/activity-report', label: 'Activity' },
+    { path: '/admin/assign-chapters', label: 'Assign' },
   ];
+
+  // 🧠 Fetch request count
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/auth/admin/access-requests', {
+          headers: { Authorization: `Bearer ${user?.token}` },
+        });
+        const pending = res.data.requests?.filter((r) => r.status === 'pending') || [];
+        setPendingCount(pending.length);
+      } catch (err) {
+        console.error('❌ Failed to fetch access requests:', err);
+      }
+    };
+
+    fetchPending();
+    const interval = setInterval(fetchPending, 20000); // auto-refresh every 20s
+    return () => clearInterval(interval);
+  }, [user]);
 
   return (
     <>
@@ -32,32 +56,39 @@ export default function AdminNavbar() {
           {/* Left: Logo */}
           <div className="text-xl font-bold basis-1/4 flex items-center">📚 Admin</div>
 
-          {/* Center: Nav Links (Desktop only) */}
-          <div className="hidden md:flex basis-1/2 justify-evenly gap-6 text-md">
+          {/* Center: Nav Links (Desktop) */}
+          <div className="hidden md:flex basis-1/2 justify-evenly gap-6 text-md relative">
             {navLinks.map((link) => {
               const isActive = currentPath === link.path;
+              const isRequestLink = link.path === '/admin/access-requests';
+
               return (
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`relative group cursor-pointer ${
-                    isActive ? 'text-[#4457ff] font-semibold' : ''
-                  }`}
+                  className={`relative group cursor-pointer ${isActive ? 'text-[#4457ff] font-semibold' : ''}`}
                 >
                   {link.label}
+
+                  {/* ✅ Underline hover effect */}
                   <span
                     className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
-                      isActive
-                        ? 'w-full bg-[#4457ff]'
-                        : 'w-0 bg-black group-hover:w-full'
+                      isActive ? 'w-full bg-[#4457ff]' : 'w-0 bg-black group-hover:w-full'
                     }`}
                   ></span>
+
+                  {/* ✅ Notification dot */}
+                  {isRequestLink && pendingCount > 0 && (
+                    <span className="absolute -top-2 -right-3 bg-red-600 text-white text-[10px] font-bold px-1.5 py-[1px] rounded-full shadow animate-pulse">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </div>
 
-          {/* Right: Logout Button (Desktop) & Menu (Mobile) */}
+          {/* Right: Logout & Menu */}
           <div className="basis-1/4 flex justify-end items-center gap-4">
             <div className="hidden md:block">
               <button
@@ -75,29 +106,37 @@ export default function AdminNavbar() {
           </div>
         </div>
 
-        {/* Mobile Dropdown */}
+        {/* Mobile Menu */}
         {menuOpen && (
           <div className="flex flex-col mt-4 gap-4 md:hidden text-lg relative z-50 animate-slide-down">
             {navLinks.map((link) => {
               const isActive = currentPath === link.path;
+              const isRequestLink = link.path === '/admin/access-requests';
+
               return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={closeMenu}
-                  className={`relative group cursor-pointer px-2 ${
-                    isActive ? 'text-[#4457ff] font-semibold' : ''
-                  }`}
-                >
-                  {link.label}
-                  <span
-                    className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
-                      isActive
-                        ? 'w-full bg-[#4457ff]'
-                        : 'w-0 bg-black group-hover:w-full'
+                <div className="relative" key={link.path}>
+                  <Link
+                    to={link.path}
+                    onClick={closeMenu}
+                    className={`relative group cursor-pointer px-2 ${
+                      isActive ? 'text-[#4457ff] font-semibold' : ''
                     }`}
-                  ></span>
-                </Link>
+                  >
+                    {link.label}
+                    <span
+                      className={`absolute left-0 -bottom-1 h-[2px] transition-all duration-300 ${
+                        isActive ? 'w-full bg-[#4457ff]' : 'w-0 bg-black group-hover:w-full'
+                      }`}
+                    ></span>
+                  </Link>
+
+                  {/* ✅ Mobile dot */}
+                  {isRequestLink && pendingCount > 0 && (
+                    <span className="absolute top-0 right-0 bg-red-600 text-white text-xs font-semibold px-1.5 rounded-full animate-pulse">
+                      {pendingCount}
+                    </span>
+                  )}
+                </div>
               );
             })}
             <button
@@ -113,7 +152,7 @@ export default function AdminNavbar() {
         )}
       </div>
 
-      {/* Mobile Backdrop Blur Overlay */}
+      {/* Mobile Blur Backdrop */}
       {menuOpen && (
         <div
           onClick={closeMenu}

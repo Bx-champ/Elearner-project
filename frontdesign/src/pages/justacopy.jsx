@@ -1,21 +1,46 @@
 import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../authContext';
 
 export default function UserBookChapters() {
-  const { id } = useParams(); // bookId
+  const { id } = useParams();
   const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeChapter, setActiveChapter] = useState(null);
   const [selectedChapters, setSelectedChapters] = useState([]);
-  const [approvedChapters, setApprovedChapters] = useState({});
 
-  // Fetch book
+  // Fetch book details by ID
+  // Use useEffect to load book data when component mounts    
+  const [approvedChapters, setApprovedChapters] = useState([]);
+
+useEffect(() => {
+  const fetchApprovedChapters = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/auth/user/chapter-access/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+      setApprovedChapters(res.data.approvedChapters);
+    } catch (err) {
+      console.error('Error fetching approved chapters', err);
+    }
+  };
+
+  if (user?.token) {
+    fetchApprovedChapters();
+  }
+}, [id, user]);
+
+
+
   useEffect(() => {
     axios
       .get(`http://localhost:5000/api/auth/book/${id}`)
@@ -28,26 +53,6 @@ export default function UserBookChapters() {
         alert('Failed to load book');
       });
   }, [id]);
-
-  // Fetch approved chapters
-  useEffect(() => {
-  if (!user?.token) return;
-  axios
-    .get(`http://localhost:5000/api/auth/user/chapter-access/${id}`, {
-      headers: { Authorization: `Bearer ${user.token}` },
-    })
-    .then((res) => {
-      const map = {};
-      res.data.accessInfo.forEach(({ chapterId, expiresAt }) => {
-        map[chapterId] = expiresAt || true;
-      });
-      setApprovedChapters(map);
-    })
-    .catch((err) => {
-      console.error('Error fetching approved chapters', err);
-    });
-}, [id, user]);
-
 
   const handleCheckboxToggle = (chapterId) => {
     setSelectedChapters((prev) =>
@@ -63,11 +68,12 @@ export default function UserBookChapters() {
       return;
     }
     if (!user || !user.token) {
-      alert('Please log in to request access');
+      alert('Please log in to request access'); 
       return;
     }
     try {
-      await axios.post(
+
+      const res = await axios.post(
         'http://localhost:5000/api/auth/request-access',
         {
           bookId: book._id,
@@ -84,7 +90,11 @@ export default function UserBookChapters() {
       setSelectedChapters([]);
     } catch (err) {
       console.error('Access request failed:', err);
-      alert(err.response?.data?.message || '❌ Failed to send request');
+      if (err.response?.status === 401) {
+        alert('❌ Unauthorized: Please log in again');
+      } else {
+        alert('❌ Failed to send request');
+      }
     }
   };
 
@@ -110,6 +120,9 @@ export default function UserBookChapters() {
             className="w-full h-48 object-cover rounded-xl"
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3 }}
+            onError={(e) => {
+              e.target.src = 'https://via.placeholder.com/600x400?text=No+Cover';
+            }}
           />
         </div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#16355a] mt-3 mb-1">{book.name}</h2>
@@ -154,72 +167,71 @@ export default function UserBookChapters() {
         ) : (
           book.chapters
             .sort((a, b) => a.order - b.order)
-            .map((ch, idx) => {
-              const hasAccess = !!approvedChapters[ch._id];
-
-              return (
-                <motion.div
-                  key={ch._id || idx}
-                  className={`bg-white rounded-2xl p-4 shadow-md border border-gray-100 hover:shadow-lg transition transform ${
-                    activeChapter !== null && activeChapter !== idx ? 'opacity-30' : ''
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                    <div>
-                      <h4 className="font-semibold text-[#2f3e52]">{ch.name}</h4>
-                      <p className="text-sm text-gray-400">Price: ₹{ch.price}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3 justify-end items-center">
-                      {hasAccess ? (
-                        <Link
-                          to={`/preview/${book._id}/${ch._id}`}
-                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
-                        >
-                          ✅ View PDF
-                        </Link>
-                      ) : (
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={selectedChapters.includes(ch._id)}
-                            onChange={() => handleCheckboxToggle(ch._id)}
-                            className="accent-blue-600"
-                          />
-                          Request Access
-                        </label>
-                      )}
-
-                      <button
-                        onClick={() => setActiveChapter(activeChapter === idx ? null : idx)}
-                        className="text-gray-600 hover:text-gray-900"
-                      >
-                        {activeChapter === idx ? (
-                          <ChevronUp className="w-5 h-5" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
+            .map((ch, idx) => (
+              <motion.div
+                key={ch._id || idx}
+                className={`bg-white rounded-2xl p-4 shadow-md border border-gray-100 hover:shadow-lg transition transform ${
+                  activeChapter !== null && activeChapter !== idx ? 'opacity-30' : ''
+                }`}
+                whileHover={{ scale: 1.02 }}
+              >
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <div>
+                    <h4 className="font-semibold text-[#2f3e52]">{ch.name}</h4>
+                    <p className="text-sm text-gray-400">Price: ₹{ch.price}</p>
                   </div>
 
-                  <AnimatePresence>
-                    {activeChapter === idx && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden mt-2 border-t pt-2 text-sm text-gray-500"
-                      >
-                        <p>{ch.description}</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })
+                  <div className="flex flex-wrap gap-3 justify-end items-center">
+                   {
+  approvedChapters.includes(ch._id) ? (
+    <Link
+      to={`/preview/${book._id}/${ch._id}`}
+      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm"
+    >
+      ✅ View PDF
+    </Link>
+  ) : (
+    <label className="flex items-center gap-2 text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={selectedChapters.includes(ch._id)}
+        onChange={() => handleCheckboxToggle(ch._id)}
+        className="accent-blue-600"
+      />
+      Request Access
+    </label>
+  )
+}
+
+
+                    <button
+                      onClick={() => setActiveChapter(activeChapter === idx ? null : idx)}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      {activeChapter === idx ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {activeChapter === idx && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden mt-2 border-t pt-2 text-sm text-gray-500"
+                    >
+                      <p>{ch.description}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))
         )}
       </motion.div>
     </div>

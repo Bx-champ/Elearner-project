@@ -40,7 +40,8 @@ export default function AdminDashboard() {
       {books.length === 0 ? (
         <p className="text-gray-500">No books uploaded yet.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+
           {books.map(book => (
             <div
               key={book._id}
@@ -65,7 +66,7 @@ export default function AdminDashboard() {
                   <img
                     src={book.coverUrl}
                     alt={book.name}
-                    className="rounded-xl transition-transform duration-500 group-hover:scale-105 group-hover:rotate-[0.5deg]"
+                    className="rounded-xl transition-transform duration-500 group-hover:scale-105 "
                   />
                 </div>
 

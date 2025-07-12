@@ -167,15 +167,20 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
       book.coverUrl = await uploadFileToS3(coverFile.buffer, coverKey, coverFile.mimetype);
     }
 
-    // Handle chapters
+    // Prepare maps
     const existingMap = {};
     book.chapters.forEach(ch => existingMap[ch._id?.toString()] = ch);
     const updatedChapters = [];
     const deleteKeys = [];
 
-    // ✅ Use for...of + await for proper async handling
+    // Loop over incoming chapter metadata
     for (let idx = 0; idx < chaptersMeta.length; idx++) {
       const meta = chaptersMeta[idx];
+
+      // Validate page numbers
+      if (meta.fromPage && meta.toPage && Number(meta.fromPage) > Number(meta.toPage)) {
+        return res.status(400).json({ message: `Invalid page range in chapter ${meta.name}` });
+      }
 
       if (meta._id && existingMap[meta._id]) {
         // Existing chapter
@@ -184,6 +189,9 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
         ch.description = meta.description;
         ch.price = meta.price;
         ch.order = idx;
+        ch.fromPage = meta.fromPage;
+        ch.toPage = meta.toPage;
+        ch.subchapters = meta.subchapters || [];
         updatedChapters.push(ch);
         delete existingMap[meta._id];
       } else {
@@ -200,19 +208,22 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
           description: meta.description,
           price: meta.price,
           order: idx,
-          pdfUrl
+          pdfUrl,
+          fromPage: meta.fromPage,
+          toPage: meta.toPage,
+          subchapters: meta.subchapters || []
         });
       }
     }
 
-    // Handle deletions
+    // Delete removed chapter PDFs
     for (const ch of Object.values(existingMap)) {
       if (ch.pdfUrl) {
         deleteKeys.push({ Key: ch.pdfUrl.split('.com/')[1] });
       }
     }
 
-    if (deleteKeys.length) {
+    if (deleteKeys.length > 0) {
       await s3.send(new DeleteObjectsCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Delete: { Objects: deleteKeys }
@@ -237,6 +248,7 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
 });
 
 
+
 router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
@@ -252,6 +264,7 @@ router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
       toPage: chapter.toPage,
       name: chapter.name,
       description: chapter.description,
+      subchapters: chapter.subchapters || [] // ✅ Add this line
     });
   } catch (err) {
     console.error('Error fetching chapter preview:', err);
@@ -313,18 +326,50 @@ const { bookId, chapterIds } = req.body;
 });
 
 // GET: All access requests for admin
+// router.get('/admin/access-requests', async (req, res) => {
+//   try {
+//     const requests = await ChapterAccessRequest.find()
+//       .populate('userId', 'name email')
+//       .populate('bookId', 'name')
+//       .sort({ requestedAt: -1 });
+//     res.json({ success: true, requests });
+//   } catch (err) {
+//     console.error('Error fetching access requests:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
 router.get('/admin/access-requests', async (req, res) => {
   try {
     const requests = await ChapterAccessRequest.find()
       .populate('userId', 'name email')
-      .populate('bookId', 'name')
+      .populate('bookId', 'name chapters') // 👈 include chapters
+      .lean() // better performance and easier manipulation
       .sort({ requestedAt: -1 });
-    res.json({ success: true, requests });
+
+    // Transform chapters to show names instead of IDs
+    const transformed = requests.map(req => {
+      if (!req.bookId || !req.bookId.chapters) return null; // safeguard
+      const chapterDetails = req.chapters.map(chId => {
+        const found = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
+        return found ? found.name : 'Unknown Chapter';
+      });
+
+      return {
+        ...req,
+        chapterNames: chapterDetails // 👈 Add this field for frontend use
+      };
+    }).filter(Boolean);
+
+    res.json({ success: true, requests: transformed });
   } catch (err) {
     console.error('Error fetching access requests:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 
 // PUT: Admin approves or rejects a request
@@ -348,6 +393,67 @@ router.put('/admin/access-request-status', async (req, res) => {
   }
 });
 
+router.get('/user/chapter-access/all', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
+      .populate({
+  path: 'bookId',
+  select: 'name coverUrl chapters'
+})
+
+      .lean();
+
+    const bookMap = {};
+
+    approvedRequests.forEach(req => {
+      const book = req.bookId;
+      if (!book || !book.chapters) return;
+
+      if (!bookMap[book._id]) {
+        bookMap[book._id] = {
+          _id: book._id,
+          name: book.name,
+          coverUrl: book.coverUrl,
+          chapters: []
+        };
+      }
+
+      req.chapters.forEach(chId => {
+        const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
+        if (chapter) {
+          bookMap[book._id].chapters.push({
+            _id: chapter._id,
+            name: chapter.name,
+            description: chapter.description,
+            fromPage: chapter.fromPage,
+            toPage: chapter.toPage,
+            price: chapter.price,
+            subchapters: chapter.subchapters || [],
+          });
+        }
+      });
+    });
+
+    const result = Object.values(bookMap);
+    res.json({ success: true, books: result });
+  } catch (err) {
+    console.error('❌ Error in /user/chapter-access/all:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+
+
+
+
 
 // GET: User's approved chapter access for a book
 router.get('/user/chapter-access/:bookId', async (req, res) => {
@@ -356,19 +462,28 @@ router.get('/user/chapter-access/:bookId', async (req, res) => {
     if (!token) return res.status(401).json({ message: 'No token' });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     const requests = await ChapterAccessRequest.find({
       userId: decoded.id,
       bookId: req.params.bookId,
       status: 'approved'
-    });
+    }).lean();
 
-    const approvedChapters = requests.flatMap(r => r.chapters);
-    res.json({ approvedChapters });
+    const accessInfo = requests.flatMap(r => 
+  r.chapters.map(chapterId => ({
+    chapterId: chapterId.toString()
+  }))
+);
+
+
+
+    res.json({ success: true, accessInfo });
   } catch (err) {
     console.error('Error fetching chapter access:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 router.get('/admin/users-access', async (req, res) => {
   try {
@@ -441,46 +556,72 @@ router.put('/admin/revoke-chapter-access', async (req, res) => {
 // GET: Admin view - All approved user chapter accesses
 router.get('/admin/access-management', async (req, res) => {
   try {
-    const allApprovedRequests = await ChapterAccessRequest.find({ status: 'approved' })
-      .populate('userId', 'name email')
-      .populate('bookId', 'name chapters');
+    const [approvedRequests, expiryAssignments] = await Promise.all([
+      ChapterAccessRequest.find({ status: 'approved' })
+        .populate('userId', 'name email')
+        .populate('bookId', 'name chapters'),
+      ChapterAssignment.find()
+        .populate('userId', 'name email')
+        .populate('bookId', 'name chapters')
+    ]);
 
-    const accessData = [];
+    const accessMap = new Map();
 
-    allApprovedRequests.forEach(req => {
-      const existing = accessData.find(entry => entry.user._id.toString() === req.userId._id.toString());
-
-      const chapterDetails = req.chapters.map(chId => {
-        const chapter = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
-        return {
-          chapterId: chId,
-          chapterName: chapter?.name || 'Unknown',
-          bookName: req.bookId.name,
-          bookId: req.bookId._id,
-          accessId: req._id, // for revoking later
-        };
+    // Process expiry-based assignments first (priority)
+    expiryAssignments.forEach(assign => {
+      const key = `${assign.userId._id}_${assign.bookId._id}_${assign.chapterId}`;
+      accessMap.set(key, {
+        type: 'expiry',
+        chapterId: assign.chapterId,
+        expiresAt: assign.expiresAt,
+        bookId: assign.bookId._id,
+        bookName: assign.bookId.name,
+        chapterName: assign.bookId.chapters.find(ch => ch._id.toString() === assign.chapterId.toString())?.name || 'Unknown',
+        user: assign.userId,
+        accessId: assign._id
       });
-
-      if (existing) {
-        existing.chapters.push(...chapterDetails);
-      } else {
-        accessData.push({
-          user: {
-            _id: req.userId._id,
-            name: req.userId.name,
-            email: req.userId.email
-          },
-          chapters: chapterDetails
-        });
-      }
     });
 
-    res.json(accessData);
+    // Process approved requests if not already overridden by expiry
+    approvedRequests.forEach(req => {
+      req.chapters.forEach(chId => {
+        const key = `${req.userId._id}_${req.bookId._id}_${chId}`;
+        if (!accessMap.has(key)) {
+          const chapter = req.bookId?.chapters?.find(ch => ch._id.toString() === chId.toString());
+          accessMap.set(key, {
+            type: 'approved',
+            chapterId: chId,
+            bookId: req.bookId._id,
+            bookName: req.bookId.name,
+            chapterName: chapter?.name || 'Unknown',
+            user: req.userId,
+            accessId: req._id
+          });
+        }
+      });
+    });
+
+    // Group by user
+    const grouped = {};
+    accessMap.forEach(access => {
+      const uid = access.user._id;
+      if (!grouped[uid]) {
+        grouped[uid] = {
+          user: access.user,
+          chapters: []
+        };
+      }
+      grouped[uid].chapters.push(access);
+    });
+
+    res.json(Object.values(grouped));
   } catch (err) {
     console.error("❌ Failed to load access-management:", err);
     res.status(500).json({ message: 'Server error while loading access data' });
   }
 });
+
+
 
 
 // DELETE: Admin revokes access for a chapter
@@ -508,6 +649,241 @@ router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
     res.status(500).json({ message: 'Server error while revoking access' });
   }
 });
+
+
+
+
+
+
+
+
+// Inside auth.js or a new assignments.js
+const ChapterAssignment = require('../models/ChapterAssignment');
+
+// POST /api/auth/admin/assign-chapters
+router.post('/admin/assign-chapters', async (req, res) => {
+  try {
+    const { userId, bookId, chapters, durationDays } = req.body; // chapters = array of chapterIds
+
+    if (!userId || !bookId || !Array.isArray(chapters) || chapters.length === 0 || !durationDays) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // ✅ Step 1: Remove approved access if exists for the same chapters
+    await ChapterAccessRequest.updateMany(
+      {
+        userId,
+        bookId,
+        status: 'approved',
+        chapters: { $in: chapters }
+      },
+      {
+        $pull: { chapters: { $in: chapters } }
+      }
+    );
+
+    // ✅ Step 2: Delete empty approved requests
+    await ChapterAccessRequest.deleteMany({
+      userId,
+      bookId,
+      status: 'approved',
+      chapters: { $size: 0 }
+    });
+
+    // ✅ Step 3: Create expiry-based assignments
+    const assignments = chapters.map(chapterId => ({
+      userId,
+      bookId,
+      chapterId,
+      assignedAt: now,
+      expiresAt
+    }));
+
+    await ChapterAssignment.insertMany(assignments);
+
+    res.status(201).json({ message: '✅ Chapters assigned successfully with expiry' });
+  } catch (err) {
+    console.error('Assignment error:', err);
+    res.status(500).json({ message: 'Server error while assigning chapters' });
+  }
+});
+
+
+
+const ActivityLog = require('../models/ActivityLog');
+
+// POST /api/auth/activity-log
+router.post('/activity-log', async (req, res) => {
+  try {
+    const { bookId, chapterId, pageNum, duration } = req.body;
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token provided' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    console.log('📥 Activity POST:', { userId, bookId, chapterId, pageNum, duration });
+    let log = await ActivityLog.findOne({ userId, bookId, chapterId });
+
+    if (!log) {
+  log = new ActivityLog({
+    userId,
+    bookId,
+    chapterId,
+    pagesViewed: [pageNum],
+    totalTimeSpent: duration,
+    lastActive: new Date() // ✅ add this
+  });
+}
+else {
+      if (!log.pagesViewed.includes(pageNum)) {
+        log.pagesViewed.push(pageNum);
+      }
+      log.totalTimeSpent += duration;
+      log.lastActive = Date.now();
+    }
+
+    await log.save();
+    console.log('✅ Activity saved:', log);
+    res.json({ success: true, log });
+  } catch (err) {
+    console.error('Activity log error:', err);
+    res.status(500).json({ message: 'Failed to save activity log' });
+  }
+});
+
+
+
+
+// 📁 GET: Admin - Get active student report
+router.get('/admin/student-activity-report', async (req, res) => {
+  try {
+    const logs = await ActivityLog.aggregate([
+      {
+        $group: {
+  _id: '$userId',
+  totalViews: { $sum: { $size: "$pagesViewed" } },
+  totalTime: { $sum: "$totalTimeSpent" },
+  lastSeen: { $max: "$lastActive" },
+}
+,
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'userInfo',
+        },
+      },
+      {
+        $unwind: '$userInfo',
+      },
+      {
+        $project: {
+          name: '$userInfo.name',
+          email: '$userInfo.email',
+          totalViews: 1,
+          totalTime: 1,
+          lastSeen: 1,
+        },
+      },
+      {
+        $sort: { lastSeen: -1 },
+      },
+    ]);
+
+    res.json({ success: true, report: logs });
+  } catch (err) {
+    console.error('📉 Error generating activity report:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// GET: Assigned books and chapters for a user
+router.get('/user/assigned-books', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const assignments = await ChapterAssignment.find({ userId }).populate({
+      path: 'bookId',
+      select: 'name coverUrl chapters',
+    }).lean(); // Use lean to simplify processing
+
+    const bookMap = {};
+
+    for (let assign of assignments) {
+      const book = assign.bookId;
+      if (!book || !book.chapters) continue;
+
+      if (!bookMap[book._id]) {
+        bookMap[book._id] = {
+          _id: book._id,
+          name: book.name,
+          coverUrl: book.coverUrl,
+          chapters: []
+        };
+      }
+
+      const chapter = book.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
+      if (chapter) {
+        bookMap[book._id].chapters.push({
+          _id: chapter._id,
+          name: chapter.name,
+          description: chapter.description,
+          fromPage: chapter.fromPage,
+          toPage: chapter.toPage,
+          price: chapter.price,
+          subchapters: chapter.subchapters || [],
+          expiresAt: assign.expiresAt // ✅ Include this
+        });
+      }
+    }
+
+    const result = Object.values(bookMap);
+    res.json({ success: true, books: result });
+  } catch (err) {
+    console.error('Assigned books error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+// GET /api/auth/admin/all-users
+router.get('/admin/all-users', async (req, res) => {
+  try {
+    const users = await User.find({}, 'email name'); // only return necessary fields
+    res.json({ success: true, users });
+  } catch (err) {
+    console.error('Failed to fetch users:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+//DELETE: Admin revokes expiry-based chapter access
+router.delete('/admin/revoke-expiry-access/:userId/:bookId/:chapterId', async (req, res) => {
+  const { userId, bookId, chapterId } = req.params;
+  try {
+    const deleted = await ChapterAssignment.findOneAndDelete({ userId, bookId, chapterId });
+    if (!deleted) return res.status(404).json({ message: 'No expiry-based access found' });
+    res.json({ message: '✅ Expiry-based access revoked' });
+  } catch (err) {
+    console.error("Revoke expiry access error:", err);
+    res.status(500).json({ message: 'Server error while revoking expiry-based access' });
+  }
+});
+
+
 
 
 
