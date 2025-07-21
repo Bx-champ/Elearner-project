@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { BASE_URL } from '../config';
 
 export default function MyFiles() {
   const [books, setBooks] = useState([]);
@@ -15,10 +16,10 @@ export default function MyFiles() {
     const fetchData = async () => {
       try {
         const [assignedRes, approvedRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/auth/user/assigned-books', {
+          axios.get(`${BASE_URL}/api/auth/user/assigned-books`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get('http://localhost:5000/api/auth/user/chapter-access/all', {
+          axios.get(`${BASE_URL}/api/auth/user/chapter-access/all`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);

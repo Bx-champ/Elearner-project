@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { BASE_URL } from '../config';
 
 export default function VendorRegister() {
   const [formData, setFormData] = useState({
@@ -29,7 +30,7 @@ export default function VendorRegister() {
 
     // TODO: Connect to backend API for registration
     try {
-    await axios.post('http://localhost:5000/api/auth/vendor/signup', formData);
+    await axios.post(`${BASE_URL}/api/auth/vendor/signup`, formData);
     setError('');
     setSuccess("Vendor registration submitted successfully!");
   } catch (err) {

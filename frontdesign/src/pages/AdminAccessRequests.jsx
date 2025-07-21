@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
+import { BASE_URL } from '../config';
 
 export default function AdminAccessRequests() {
   const [requests, setRequests] = useState([]);
@@ -9,7 +10,7 @@ export default function AdminAccessRequests() {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/auth/admin/access-requests');
+      const res = await axios.get(`${BASE_URL}/api/auth/admin/access-requests`);
       setRequests(res.data.requests);
     } catch (err) {
       console.error('Failed to fetch access requests:', err);
@@ -26,7 +27,7 @@ export default function AdminAccessRequests() {
   const handleStatusUpdate = async (requestId, newStatus) => {
     try {
       setUpdatingId(requestId);
-      await axios.put('http://localhost:5000/api/auth/admin/access-request-status', {
+      await axios.put(`${BASE_URL}/api/auth/admin/access-request-status`, {
         requestId,
         status: newStatus,
       });

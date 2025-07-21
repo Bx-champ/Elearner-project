@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-
+import { BASE_URL } from './config';
 export default function SignInModal({ onClose }) {
   return (
     <>

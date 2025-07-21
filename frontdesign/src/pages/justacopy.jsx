@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../authContext';
+import { BASE_URL } from '../config';
 
 export default function UserBookChapters() {
   const { id } = useParams();
@@ -21,7 +22,7 @@ useEffect(() => {
   const fetchApprovedChapters = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/auth/user/chapter-access/${id}`,
+        `${BASE_URL}/api/auth/user/chapter-access/${id}`,
         {
           headers: {
             Authorization: `Bearer ${user.token}`,
@@ -43,7 +44,7 @@ useEffect(() => {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:5000/api/auth/book/${id}`)
+      .get(`${BASE_URL}/api/auth/book/${id}`)
       .then((res) => {
         setBook(res.data.book);
         setLoading(false);
@@ -74,7 +75,7 @@ useEffect(() => {
     try {
 
       const res = await axios.post(
-        'http://localhost:5000/api/auth/request-access',
+        `${BASE_URL}/api/auth/request-access`,
         {
           bookId: book._id,
           chapterIds: selectedChapters,

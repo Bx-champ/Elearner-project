@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { BASE_URL } from '../config';
 
 export default function AdminAssignChapters() {
   const [users, setUsers] = useState([]);
@@ -10,13 +11,13 @@ export default function AdminAssignChapters() {
   const [duration, setDuration] = useState('');
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/auth/admin/all-users')
+    axios.get(`${BASE_URL}/api/auth/admin/all-users`)
       .then(res => setUsers(res.data.users))
       .catch(err => console.error('Failed to fetch users:', err));
   }, []);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/auth/books')
+    axios.get(`${BASE_URL}/api/auth/books`)
       .then(res => setBooks(res.data.books))
       .catch(err => console.error('Failed to fetch books:', err));
   }, []);
@@ -27,7 +28,7 @@ export default function AdminAssignChapters() {
       return;
     }
 
-    axios.post('http://localhost:5000/api/auth/admin/assign-chapters', {
+    axios.post(`${BASE_URL}/api/auth/admin/assign-chapters`, {
       userId: selectedUserId,
       bookId: selectedBookId,
       chapters: selectedChapters,

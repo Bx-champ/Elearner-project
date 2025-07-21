@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BASE_URL } from '../config';
 
 export default function AdminBookChapters() {
   const { id } = useParams();
@@ -11,7 +12,7 @@ export default function AdminBookChapters() {
   const [activeChapter, setActiveChapter] = useState(null);
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/auth/book/${id}`)
+    axios.get(`${BASE_URL}/api/auth/book/${id}`)
       .then(res => {
         setBook(res.data.book);
         setLoading(false);

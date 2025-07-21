@@ -4,6 +4,7 @@ import { AuthContext } from '../authContext';
 import { Bell, CheckCircle } from 'lucide-react';
 import socket from '../socket';
 import { NotificationContext } from '../context/NotificationContext';
+import { BASE_URL } from '../config';
 
 export default function UserNotifications() {
   const { user } = useContext(AuthContext);
@@ -15,7 +16,7 @@ export default function UserNotifications() {
 
     // 1️⃣ Fetch notifications
     axios
-      .get('http://localhost:5000/api/auth/user/notifications', {
+      .get(`${BASE_URL}/api/auth/user/notifications`, {
         headers: { Authorization: `Bearer ${user.token}` },
       })
       .then(res => {

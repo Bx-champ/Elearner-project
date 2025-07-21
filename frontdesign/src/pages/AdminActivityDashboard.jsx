@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ChevronDown, ChevronUp, CircleDot } from 'lucide-react';
+import { BASE_URL } from '../config';
 
 export default function AdminActivityDashboard() {
   const [report, setReport] = useState([]);
@@ -8,7 +9,7 @@ export default function AdminActivityDashboard() {
 
   useEffect(() => {
     axios
-      .get('http://localhost:5000/api/auth/admin/student-activity-report')
+      .get(`${BASE_URL}/api/auth/admin/student-activity-report`)
       .then((res) => setReport(res.data.report || []))
       .catch((err) => console.error('Failed to load activity report:', err));
   }, []);

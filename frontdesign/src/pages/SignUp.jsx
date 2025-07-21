@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { BASE_URL } from '../config';
 
 export default function SignUp() {
   const [name, setName] = useState('');
@@ -26,7 +27,7 @@ export default function SignUp() {
       console.log({ name, email, password });
       // Handle API call here
         try {
-    await axios.post('http://localhost:5000/api/auth/signup', {name ,email, password });
+    await axios.post(`${BASE_URL}/api/auth/signup`, {name ,email, password });
     alert('Registration successful');
   } catch (err) {
     alert(err.response.data.message);

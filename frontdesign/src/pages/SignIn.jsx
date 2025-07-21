@@ -4,6 +4,7 @@ import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
 import socket from '../socket'; // ✅ Import socket instance
+import { BASE_URL } from '../config';
 
 export default function SignIn() {
   const { login } = useContext(AuthContext);
@@ -32,7 +33,7 @@ export default function SignIn() {
     if (Object.keys(formErrors).length > 0) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/signin', {
+      const res = await axios.post(`${BASE_URL}/api/auth/signin`, {
         email,
         password
       });

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import * as pdfjsLib from 'pdfjs-dist';
+import { BASE_URL } from '../config';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
 
@@ -27,7 +28,7 @@ export default function ChapterPreview() {
 
   // Fetch chapter
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/auth/book/${bookId}/chapter/${chapterId}`)
+    axios.get(`${BASE_URL}/api/auth/book/${bookId}/chapter/${chapterId}`)
       .then((res) => setData(res.data))
       .catch((err) => console.error('Error loading chapter:', err));
   }, [bookId, chapterId]);
@@ -181,7 +182,7 @@ export default function ChapterPreview() {
       if (!token) return console.warn('⚠️ No token for log');
 
       await axios.post(
-        'http://localhost:5000/api/auth/activity-log',
+        `${BASE_URL}/api/auth/activity-log`,
         { bookId, chapterId, pageNum, duration },
         { headers: { Authorization: `Bearer ${token}` } }
       );

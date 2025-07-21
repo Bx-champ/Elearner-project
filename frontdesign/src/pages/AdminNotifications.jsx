@@ -3,6 +3,7 @@ import socket from '../socket';
 import axios from 'axios';
 import { Bell, CheckCircle } from 'lucide-react';
 import { AuthContext } from '../authContext';
+import { BASE_URL } from '../config';
 
 export default function AdminNotifications() {
   const { user } = useContext(AuthContext);
@@ -12,7 +13,7 @@ export default function AdminNotifications() {
     if (!user?.token) return;
 
     // Fetch admin notifications
-    axios.get('http://localhost:5000/api/auth/admin/notifications', {
+    axios.get(`${BASE_URL}/api/auth/admin/notifications`, {
       headers: { Authorization: `Bearer ${user.token}` }
     }).then(res => setNotifications(res.data.notifications));
 

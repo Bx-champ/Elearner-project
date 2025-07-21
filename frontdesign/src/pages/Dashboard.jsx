@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { BASE_URL } from '../config';
 
 export default function UserDashboard() {
   const [books, setBooks] = useState([]);
@@ -8,7 +9,7 @@ export default function UserDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/auth/books')
+    axios.get(`${BASE_URL}/api/auth/books`)
       .then(res => setBooks(res.data.books))
       .catch(err => console.error('Failed to load books:', err));
   }, []);

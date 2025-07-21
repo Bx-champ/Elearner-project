@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import socket from '../socket';
 import { AuthContext } from '../authContext';
+import { BASE_URL } from '../config';
 
 export const NotificationContext = createContext();
 
@@ -14,7 +15,7 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.token) return;
 
     // Fetch initial notifications
-    axios.get('http://localhost:5000/api/auth/user/notifications', {
+    axios.get(`${BASE_URL}/api/auth/user/notifications`, {
       headers: { Authorization: `Bearer ${user.token}` }
     })
     .then(res => setNotifications(res.data.notifications || []))
@@ -33,7 +34,7 @@ export const NotificationProvider = ({ children }) => {
 
   const markAllAsRead = async () => {
     try {
-      await axios.put('http://localhost:5000/api/auth/user/notifications/mark-read', {}, {
+      await axios.put(`${BASE_URL}/api/auth/user/notifications/mark-read`, {}, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));

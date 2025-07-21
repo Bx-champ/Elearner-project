@@ -1,0 +1,1 @@
+export const BASE_URL = 'https://elearner-project-1-0.onrender.com';

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { BASE_URL } from '../config';
 
 export default function AdminAccessManager() {
   const [data, setData] = useState([]);
@@ -13,7 +14,7 @@ export default function AdminAccessManager() {
   useEffect(() => {
     if (!user?.token) return;
 
-    axios.get('http://localhost:5000/api/auth/admin/access-management', {
+    axios.get(`${BASE_URL}/api/auth/admin/access-management`, {
       headers: {
         Authorization: `Bearer ${user.token}`,
       }
@@ -40,11 +41,11 @@ export default function AdminAccessManager() {
   const revokeAccess = async (accessId, chapterId, type, userId, bookId) => {
     try {
       if (type === 'approved') {
-        await axios.delete(`http://localhost:5000/api/auth/admin/revoke-access/${accessId}/${chapterId}`, {
+        await axios.delete(`${BASE_URL}/api/auth/admin/revoke-access/${accessId}/${chapterId}`, {
           headers: { Authorization: `Bearer ${user.token}` }
         });
       } else if (type === 'expiry') {
-        await axios.delete(`http://localhost:5000/api/auth/admin/revoke-expiry-access/${userId}/${bookId}/${chapterId}`, {
+        await axios.delete(`${BASE_URL}/api/auth/admin/revoke-expiry-access/${userId}/${bookId}/${chapterId}`, {
           headers: { Authorization: `Bearer ${user.token}` }
         });
       }

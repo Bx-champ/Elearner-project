@@ -2,7 +2,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../authContext';
 import { Menu, X } from 'lucide-react';
+
 import axios from 'axios';
+import { BASE_URL } from '../config';
 
 export default function AdminNavbar() {
   const location = useLocation();
@@ -35,7 +37,7 @@ export default function AdminNavbar() {
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/auth/admin/access-requests', {
+        const res = await axios.get(`${BASE_URL}/api/auth/admin/access-requests`, {
           headers: { Authorization: `Bearer ${user?.token}` },
         });
         const pending = res.data.requests?.filter((r) => r.status === 'pending') || [];

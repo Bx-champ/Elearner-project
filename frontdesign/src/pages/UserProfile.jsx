@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
 import { UserCircle, Clock, Eye, Lock } from 'lucide-react';
+import { BASE_URL } from '../config';
 
 export default function UserProfile() {
   const { user } = useContext(AuthContext);
@@ -11,7 +12,7 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (!user?.token) return;
-    axios.get('http://localhost:5000/api/auth/user/activity-summary', {
+    axios.get(`${BASE_URL}/api/auth/user/activity-summary`, {
       headers: { Authorization: `Bearer ${user.token}` }
     }).then(res => {
       setActivity(res.data.summary);

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Trash2, Pencil } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { BASE_URL } from '../config';
 
 export default function AdminDashboard() {
   const [books, setBooks] = useState([]);
@@ -13,7 +14,7 @@ export default function AdminDashboard() {
 
   const fetchBooks = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/auth/books');
+      const res = await axios.get(`${BASE_URL}/api/auth/books`);
       setBooks(res.data.books);
     } catch (err) {
       console.error('Failed to load books', err);
@@ -24,7 +25,7 @@ export default function AdminDashboard() {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this book?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/auth/admin/book/${id}`);
+      await axios.delete(`${BASE_URL}/api/auth/admin/book/${id}`);
       setBooks(prev => prev.filter(book => book._id !== id));
       alert('✅ Book deleted successfully');
     } catch (err) {

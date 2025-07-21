@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { BASE_URL } from '../config';
 
 export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
   const [uploading, setUploading] = useState(false);
@@ -35,7 +36,7 @@ export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
       formData.append('chaptersMeta', JSON.stringify(chaptersMeta));
 
       // ✅ Submit to backend
-      const res = await axios.post('http://localhost:5000/api/admin/save-book', formData, {
+      const res = await axios.post(`${BASE_URL}/api/admin/save-book`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

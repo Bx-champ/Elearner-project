@@ -3,13 +3,14 @@ import axios from 'axios';
 import { AuthContext } from './authContext';
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BASE_URL } from './config';
 
 export const useAxios = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const axiosInstance = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: `${BASE_URL}/api`,
   });
 
   // Add token to every request

@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom';
 import { Trash2, GripVertical, PlusCircle, Plus, Trash } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BASE_URL } from '../config';
 
 export default function EditBook() {
   const { id } = useParams();
@@ -17,7 +18,7 @@ export default function EditBook() {
   const rightPanelRef = useRef();
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/auth/book/${id}`)
+    axios.get(`${BASE_URL}/api/auth/book/${id}`)
       .then(res => {
         setBook({
           name: res.data.book.name,
@@ -114,7 +115,7 @@ export default function EditBook() {
         if (ch.file) formData.append('chapterFiles', ch.file);
       });
 
-      await axios.put(`http://localhost:5000/api/auth/admin/book/${id}`, formData, {
+      await axios.put(`${BASE_URL}/api/auth/admin/book/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
