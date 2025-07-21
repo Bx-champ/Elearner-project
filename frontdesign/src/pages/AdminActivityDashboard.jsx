@@ -1,68 +1,61 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { ChevronDown, ChevronUp, CircleDot } from 'lucide-react';
 
 export default function AdminActivityDashboard() {
   const [report, setReport] = useState([]);
+  const [expandedUserId, setExpandedUserId] = useState(null);
 
   useEffect(() => {
     axios
       .get('http://localhost:5000/api/auth/admin/student-activity-report')
-      .then((res) => setReport(res.data.report))
+      .then((res) => setReport(res.data.report || []))
       .catch((err) => console.error('Failed to load activity report:', err));
   }, []);
 
-  // Utility: convert seconds to HH:MM:SS
-  const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600)
-      .toString()
-      .padStart(2, '0');
-    const m = Math.floor((seconds % 3600) / 60)
-      .toString()
-      .padStart(2, '0');
-    const s = Math.floor(seconds % 60)
-      .toString()
-      .padStart(2, '0');
-    return `${h}:${m}:${s}`;
+  const toggleExpand = (userId) => {
+    setExpandedUserId(prev => (prev === userId ? null : userId));
   };
 
   return (
     <div className="min-h-screen pt-20 px-6 bg-[#f4f2ec]">
-      <h2 className="text-2xl font-bold text-[#16355a] mb-6">📊 Student Activity Dashboard</h2>
+      <h2 className="text-2xl font-bold text-[#16355a] mb-6">🟢 Student Activity Overview</h2>
 
-      <div className="overflow-x-auto shadow rounded bg-white">
-        <table className="w-full table-auto">
-          <thead className="bg-gray-100">
-            <tr className="text-left">
-              <th className="p-3">👤 Name</th>
-              <th className="p-3">📧 Email</th>
-              {/* <th className="p-3">📄 Pages Viewed</th> */}
-              <th className="p-3">⏱️ Total Time Spent</th>
-              <th className="p-3">🕒 Last Session Time</th>
-              <th className="p-3">🕓 Last Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.map((r, i) => {
-              const now = new Date();
-              const lastSeen = new Date(r.lastSeen);
-              const secondsSinceLastActive = Math.floor((now - lastSeen) / 1000);
+      <div className="bg-white shadow rounded overflow-hidden">
+        {report.map((r) => {
+          const userId = r.userId || r._id; // Ensure unique key
+          const lastSeen = r.lastSeen ? new Date(r.lastSeen) : null;
+          const isExpanded = expandedUserId === userId;
 
-              return (
-                <tr key={i} className="border-t">
-                  <td className="p-3">{r.name}</td>
-                  <td className="p-3">{r.email}</td>
-                  {/* <td className="p-3">{r.totalViews}</td> */}
-                  <td className="p-3">{formatTime(r.totalTime)}</td>
-                  <td className="p-3">{formatTime(Math.min(secondsSinceLastActive, r.totalTime))}</td>
-                  <td className="p-3">{lastSeen.toLocaleString()}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          return (
+            <div key={userId} className="border-b">
+              {/* User Summary Row */}
+              <div
+                className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-100"
+                onClick={() => toggleExpand(userId)}
+              >
+                <div className="flex items-center gap-3">
+                  <CircleDot className={r.isOnline ? 'text-green-500' : 'text-gray-400'} size={14} />
+                  <span className="font-medium text-[#16355a]">{r.name || 'Unnamed User'}</span>
+                </div>
+                {isExpanded ? <ChevronUp /> : <ChevronDown />}
+              </div>
+
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div className="bg-gray-50 px-6 py-4 text-sm text-[#2f3e52]">
+                  <p><strong>📧 Email:</strong> {r.email || 'N/A'}</p>
+                  <p><strong>📚 Books Assigned:</strong> {r.booksAssigned ?? 0}</p>
+                  <p><strong>📄 Chapters Assigned:</strong> {r.chaptersAssigned ?? 0}</p>
+                  <p><strong>🕓 Last Seen:</strong> {lastSeen ? lastSeen.toLocaleString() : 'Unknown'}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {report.length === 0 && (
-          <p className="p-4 text-center text-sm text-gray-500">No activity data yet.</p>
+          <p className="p-4 text-center text-sm text-gray-500">No student activity yet.</p>
         )}
       </div>
     </div>

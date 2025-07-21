@@ -28,6 +28,7 @@ export default function AdminNavbar() {
     { path: '/admin/access-manager', label: 'Manager' },
     { path: '/admin/activity-report', label: 'Activity' },
     { path: '/admin/assign-chapters', label: 'Assign' },
+    { path: '/admin/notifications', label: 'notification' },
   ];
 
   // 🧠 Fetch request count

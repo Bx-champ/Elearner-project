@@ -26,6 +26,8 @@ import AdminActivityDashboard from './pages/AdminActivityDashboard';
 import MyFiles from './pages/MyFiles';
 import AdminAssignChapters from './pages/AdminAssignChapters';
 import UserNotifications from './pages/UserNotifications';
+import AdminNotifications from './pages/AdminNotifications';
+import UserProfile from './pages/UserProfile';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
@@ -73,7 +75,8 @@ function App() {
         <Route path="/admin/assign-chapters" element={<AdminAssignChapters />} />
         <Route path="/myfiles" element={<MyFiles />} />
         <Route path="/notifications" element={<UserNotifications />} />
-
+         <Route path="/admin/notifications" element={<AdminNotifications />} />
+         <Route path="/profile" element={<UserProfile />} />
       </Routes>
     </div>
   );

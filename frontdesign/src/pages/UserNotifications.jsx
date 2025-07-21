@@ -1,28 +1,37 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useContext, useState } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
-import socket from '../socket';
 import { Bell, CheckCircle } from 'lucide-react';
+import socket from '../socket';
+import { NotificationContext } from '../context/NotificationContext';
 
 export default function UserNotifications() {
   const { user } = useContext(AuthContext);
-  const [notifications, setNotifications] = useState([]);
+  const { notifications, setNotifications, markAllAsRead } = useContext(NotificationContext);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user?.token) return;
 
-    // 1️⃣ Fetch notifications on load
-    axios.get('http://localhost:5000/api/auth/user/notifications', {
-      headers: { Authorization: `Bearer ${user.token}` }
-    })
-    .then(res => setNotifications(res.data.notifications))
-    .catch(err => console.error('Failed to fetch notifications:', err));
+    // 1️⃣ Fetch notifications
+    axios
+      .get('http://localhost:5000/api/auth/user/notifications', {
+        headers: { Authorization: `Bearer ${user.token}` },
+      })
+      .then(res => {
+        setNotifications(res.data.notifications);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch notifications:', err);
+        setLoading(false);
+      });
 
-    // 2️⃣ Emit user ID to backend socket
+    // 2️⃣ Register user for socket
     socket.emit('register', user._id);
 
-    // 3️⃣ Listen for real-time notifications
-    socket.on('notification', (newNotification) => {
+    // 3️⃣ Listen for new notifications
+    socket.on('notification', newNotification => {
       setNotifications(prev => [newNotification, ...prev]);
     });
 
@@ -30,15 +39,7 @@ export default function UserNotifications() {
     return () => {
       socket.off('notification');
     };
-  }, [user]);
-
-  const markAllAsRead = () => {
-    axios.put('http://localhost:5000/api/auth/user/notifications/mark-read', {}, {
-      headers: { Authorization: `Bearer ${user.token}` }
-    }).then(() => {
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    });
-  };
+  }, [user, setNotifications]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f4f2ec] to-[#e8e6df] pt-24 px-4 sm:px-6 lg:px-12">
@@ -58,8 +59,10 @@ export default function UserNotifications() {
         )}
       </div>
 
-      {/* No notifications */}
-      {notifications.length === 0 ? (
+      {/* Loading */}
+      {loading ? (
+        <p className="text-gray-500 text-center text-lg mt-10 animate-pulse">Loading notifications...</p>
+      ) : notifications.length === 0 ? (
         <p className="text-gray-500 text-center text-lg mt-10">You’re all caught up! 🎉</p>
       ) : (
         <div className="grid gap-4">
@@ -77,12 +80,11 @@ export default function UserNotifications() {
                     {new Date(n.createdAt).toLocaleString()}
                   </p>
                 </div>
-                {!n.isRead && (
+                {!n.isRead ? (
                   <span className="flex items-center justify-center text-xs font-medium px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full animate-pulse">
                     🔵 Unread
                   </span>
-                )}
-                {n.isRead && (
+                ) : (
                   <span className="hidden sm:flex items-center text-green-500 text-xs gap-1">
                     <CheckCircle size={14} /> Read
                   </span>

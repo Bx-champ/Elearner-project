@@ -11,6 +11,9 @@ const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
 const Book = require('../models/Book');
 const ChapterAccessRequest = require('../models/ChapterAccessRequest');
+const mongoose = require('mongoose');
+const ActivityLog = require('../models/ActivityLog'); // ✅ You already have this model
+
 require('dotenv').config();
 
 const router = express.Router();
@@ -26,11 +29,16 @@ const s3 = new S3Client({
 
 
 //////////////////////////////////////////////////////////////////////////////
-const createNotification = async ({ userId, message, type }, req = null) => {
+const createNotification = async ({ userId, message, type, forAdmin = false }, req = null) => {
   try {
-    const notification = await new Notification({ userId, message, type }).save();
+    const notification = await new Notification({
+      userId: forAdmin ? undefined : userId,
+      message,
+      type,
+      forAdmin
+    }).save();
 
-    if (req) {
+    if (req && !forAdmin) {
       const io = req.app.get('io');
       const userSockets = req.app.get('userSockets');
       const socketId = userSockets.get(userId.toString());
@@ -42,6 +50,7 @@ const createNotification = async ({ userId, message, type }, req = null) => {
     console.error('🔔 Notification error:', err.message);
   }
 };
+
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -84,6 +93,16 @@ router.post('/signin', async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+// Save the token in the corresponding model
+if (role === 'user') {
+  await User.findByIdAndUpdate(user._id, { currentToken: token });
+} else if (role === 'admin') {
+  await Admin.findByIdAndUpdate(user._id, { currentToken: token });
+} else if (role === 'vendor') {
+  await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
+}
+
     const userInfo = {
   _id: user._id,
   name: user.name,
@@ -354,6 +373,22 @@ const chapterNames = book.chapters
 const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
 
 await createNotification({ userId, type: 'requestSubmitted', message }, req);
+// 1️⃣ Fetch user details
+const user = await User.findById(userId);
+
+// 2️⃣ Extract chapter names
+const chapterName = book.chapters
+  .filter(ch => chapterIds.includes(ch._id.toString()))
+  .map(ch => ch.name);
+
+// 3️⃣ Create admin notification
+await createNotification({
+  message: `📨 Access request from "${user.name}" (${user.email}) for "${book.name}" - Chapters: ${chapterName.join(', ')}`,
+  type: 'userRequest',
+  forAdmin: true
+});
+
+
 
 /////////////////////////////////////////////////////////////////////////
     res.status(201).json({ message: '✅ Access request submitted', request });
@@ -437,6 +472,14 @@ await createNotification({
   type: status, 
   message 
 }, req);
+
+
+// await createNotification({
+//   message: `📨 Access request from user "${userId}" for "${book.name}"`,
+//   type: 'userRequest',
+//   forAdmin: true
+// });
+
 
 ///////////////////////////////////////////////////////////////// 
 
@@ -763,15 +806,24 @@ router.post('/admin/assign-chapters', async (req, res) => {
     await ChapterAssignment.insertMany(assignments);
 
     // ✅ Step 4: Send Notifications to user per chapter
-    const book = await Book.findById(bookId);
+  // ✅ Step 4: Send Notifications to user + admin per chapter
+const book = await Book.findById(bookId);
+const user = await User.findById(userId); // 🆕 fetch user details
 
 for (const chapterId of chapters) {
   const chapter = book.chapters.find(ch => ch._id.toString() === chapterId.toString());
   if (chapter) {
-    const message = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
-    await createNotification({ userId, type: 'assigned', message }, req);
+    const messageToUser = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
+    
+    // Notify user
+    await createNotification({ userId, type: 'assigned', message: messageToUser }, req);
+
+    // Notify admin
+    const messageToAdmin = `🛡️ Assigned chapter "${chapter.name}" from "${book.name}" to user "${user.name}" (${user.email}) until ${expiresAt.toLocaleDateString()}`;
+    await createNotification({ message: messageToAdmin, type: 'assigned', forAdmin: true });
   }
 }
+
 /////////////////////////////////////////////////////////////////////////////////
 
     res.status(201).json({ message: '✅ Chapters assigned successfully with expiry' });
@@ -784,7 +836,7 @@ for (const chapterId of chapters) {
 
 
 
-const ActivityLog = require('../models/ActivityLog');
+// const ActivityLog = require('../models/ActivityLog');
 
 // POST /api/auth/activity-log
 router.post('/activity-log', async (req, res) => {
@@ -832,47 +884,59 @@ else {
 // 📁 GET: Admin - Get active student report
 router.get('/admin/student-activity-report', async (req, res) => {
   try {
+    // 1. Get users with activity logs
     const logs = await ActivityLog.aggregate([
       {
         $group: {
-  _id: '$userId',
-  totalViews: { $sum: { $size: "$pagesViewed" } },
-  totalTime: { $sum: "$totalTimeSpent" },
-  lastSeen: { $max: "$lastActive" },
-}
-,
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'userInfo',
-        },
-      },
-      {
-        $unwind: '$userInfo',
-      },
-      {
-        $project: {
-          name: '$userInfo.name',
-          email: '$userInfo.email',
-          totalViews: 1,
-          totalTime: 1,
-          lastSeen: 1,
-        },
-      },
-      {
-        $sort: { lastSeen: -1 },
-      },
+          _id: '$userId',
+          totalViews: { $sum: { $size: "$pagesViewed" } },
+          totalTime: { $sum: "$totalTimeSpent" },
+          lastSeen: { $max: "$lastActive" },
+        }
+      }
     ]);
 
-    res.json({ success: true, report: logs });
+    // 2. Fetch all users who either have access or activity
+    const [accessUsers, allUsers] = await Promise.all([
+      ChapterAccessRequest.distinct('userId', { status: 'approved' }),
+      ChapterAssignment.distinct('userId')
+    ]);
+
+    const allUserIds = new Set([
+      ...logs.map(log => log._id.toString()),
+      ...accessUsers.map(id => id.toString()),
+      ...allUsers.map(id => id.toString())
+    ]);
+
+    const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).lean();
+
+    // 3. Map logs to user
+    const logMap = {};
+    logs.forEach(log => {
+      logMap[log._id.toString()] = log;
+    });
+
+    // 4. Combine into full report
+    const report = users.map(user => {
+      const log = logMap[user._id.toString()];
+      return {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        totalViews: log?.totalViews || 0,
+        totalTime: log?.totalTime || 0,
+        lastSeen: log?.lastSeen || null,
+        isOnline: false // Optional: you could track this from sockets
+      };
+    });
+
+    res.json({ success: true, report });
   } catch (err) {
     console.error('📉 Error generating activity report:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 
 // GET: Assigned books and chapters for a user
@@ -999,7 +1063,80 @@ router.put('/user/notifications/mark-read', async (req, res) => {
 
 
 
+// GET /api/auth/admin/notifications
+router.get('/admin/notifications', async (req, res) => {
+  try {
+    const notifications = await Notification.find({ forAdmin: true }).sort({ createdAt: -1 });
+    res.json({ success: true, notifications });
+  } catch (err) {
+    console.error('Admin notification fetch error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
+
+// PUT /api/auth/admin/notifications/mark-read
+router.put('/admin/notifications/mark-read', async (req, res) => {
+  try {
+    await Notification.updateMany({ forAdmin: true, isRead: false }, { $set: { isRead: true } });
+    res.json({ success: true, message: 'Admin notifications marked as read' });
+  } catch (err) {
+    console.error('Admin mark-read error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// GET /api/auth/user/activity-summary
+router.get('/user/activity-summary', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const summary = await ActivityLog.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: '$userId',
+          totalViews: { $sum: { $size: '$pagesViewed' } },
+          totalTime: { $sum: '$totalTimeSpent' },
+          lastSeen: { $max: '$lastActive' }
+        }
+      }
+    ]);
+
+    res.json({ success: true, summary: summary[0] || {} });
+  } catch (err) {
+    console.error('Activity summary error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// POST /logout
+router.post('/logout', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(400).json({ message: 'No token' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let model;
+
+    if (decoded.role === 'user') model = User;
+    else if (decoded.role === 'admin') model = Admin;
+    else if (decoded.role === 'vendor') model = Vendor;
+    else return res.status(400).json({ message: 'Invalid role' });
+
+    await model.findByIdAndUpdate(decoded.id, { currentToken: null });
+    res.json({ message: '✅ Logged out successfully' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ message: 'Server error during logout' });
+  }
+});
 
 
 

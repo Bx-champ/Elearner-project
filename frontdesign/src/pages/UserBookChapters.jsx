@@ -1,11 +1,15 @@
 import React, { useEffect, useState, useContext } from 'react';
-import axios from 'axios';
+// import axios from 'axios';
+import { useAxios } from '../axiosInstance';
+
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../authContext';
 
 export default function UserBookChapters() {
+  const axios = useAxios();
+
   const { id } = useParams(); // bookId
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();

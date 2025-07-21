@@ -5,6 +5,9 @@ const socketIO = require('socket.io');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth');
+const cron = require('node-cron');
+const cleanExpiredAssignments = require('./jobs/expiryCleanupJob'); // 👈 import it
+
 
 dotenv.config();
 const app = express();
@@ -12,9 +15,12 @@ const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
     origin: 'http://localhost:3000', // frontend origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+     credentials: true    
   }
 });
+
+
 
 // Store socket connections
 const userSockets = new Map();
@@ -42,6 +48,11 @@ io.on('connection', (socket) => {
 // Make `io` + `userSockets` accessible to routes
 app.set('io', io);
 app.set('userSockets', userSockets);
+// 🕐 Schedule job every 1 minute (or as needed)
+cron.schedule('* * * * *', async () => {
+  await cleanExpiredAssignments(io, userSockets);
+});
+
 
 app.get('/',(req,res)=>{
     res.send("server is running");
@@ -63,4 +74,4 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log(err));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
