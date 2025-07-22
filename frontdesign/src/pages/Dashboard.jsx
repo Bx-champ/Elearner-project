@@ -28,7 +28,7 @@ export default function UserDashboard() {
 
 
   return (
-    <div className="min-h-screen bg-[#f4f2ec] pt-24 px-6 md:px-12">
+    <div className="min-h-screen bg-[#00549d] pt-24 px-6 md:px-12">
       {/* 🔍 Search Bar */}
       <div className="mb-6 max-w-xl mx-auto">
         <input

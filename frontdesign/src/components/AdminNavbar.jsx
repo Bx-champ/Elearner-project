@@ -57,7 +57,7 @@ export default function AdminNavbar() {
       <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5 shadow-sm">
         <div className="flex justify-between items-center">
           {/* Left: Logo */}
-          <div className="text-xl font-bold basis-1/4 flex items-center">📚 Admin</div>
+          <div className="text-xl font-bold basis-1/4 flex items-center">Admin</div>
 
           {/* Center: Nav Links (Desktop) */}
           <div className="hidden md:flex basis-1/2 justify-evenly gap-6 text-md relative">

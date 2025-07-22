@@ -255,7 +255,7 @@ export default function ChapterPreview() {
       )}
 
       {/* 🔍 Zoom Controls */}
-      <div className="fixed top-24 right-6 z-50 flex flex-col items-end gap-2 bg-white p-3 rounded shadow">
+      <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2 bg-white p-3 rounded shadow">
         <div className="flex gap-2">
           <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))} className="bg-gray-200 px-2 py-1 rounded">➕ Zoom</button>
           <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.5))} className="bg-gray-200 px-2 py-1 rounded">➖ Zoom</button>

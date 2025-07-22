@@ -163,7 +163,7 @@ export default function Navbar() {
       <div className="fixed top-0 left-0 w-full bg-[#f4f2ec] text-[#16355a] z-50 p-5 shadow-md">
         <div className="flex justify-between items-center md:flex">
           {/* Logo */}
-          <div className="text-2xl font-extrabold basis-1/4 md:basis-1/8 lg:basis-1/4">📚 LOGO</div>
+          <div className="text-2xl font-extrabold basis-1/4 md:basis-1/8 lg:basis-1/4">LOGO</div>
 
           {/* Hamburger Icon for Mobile */}
           <div className="md:hidden">

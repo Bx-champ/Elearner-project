@@ -183,13 +183,13 @@ export default function Home() {
               to="/signin"
               className="bg-yellow-400 hover:bg-yellow-300 text-black font-semibold py-2 px-6 rounded-full shadow-lg transition duration-300"
             >
-              Get Started
+              let's Start
             </Link>
             <Link
               to="/register/vendor"
               className="bg-[#4457ff] hover:bg-[#2f45d4] text-white font-semibold py-2 px-6 rounded-full shadow-lg transition duration-300"
             >
-              Become a Vendor
+              Be a Vendor
             </Link>
           </div>
         </div>
@@ -211,7 +211,7 @@ export default function Home() {
 
       {/* Features Section */}
       <div className="mb-20">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">🚀 Why Choose Us</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">Why Choose Us</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {features.map((item, index) => (
             <motion.div
@@ -229,7 +229,7 @@ export default function Home() {
 
       {/* How It Works Section */}
       <div className="mb-24">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">📚 How It Works</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">How It Works</h2>
         <div className="grid gap-8 md:grid-cols-3">
           {[
             { step: 1, title: 'Sign Up or Log In' },
@@ -252,7 +252,7 @@ export default function Home() {
 
       {/* Testimonials Section */}
       <div className="mb-24">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">🌟 What Users Say</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12"> What Users Say</h2>
         <div className="grid gap-8 md:grid-cols-3">
           {testimonials.map((item, index) => (
             <div
