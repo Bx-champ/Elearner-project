@@ -66,6 +66,10 @@ app.use('/api/auth', authRoutes);
 const adminUploadRoute = require('./routes/adminUpload');
 app.use('/api/admin', adminUploadRoute);
 
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 
 

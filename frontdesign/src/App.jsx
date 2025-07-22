@@ -1,4 +1,5 @@
 import { useContext } from 'react';
+import { useLocation } from 'react-router-dom'; // 🔸 import this
 import './App.css';
 import Navbar from './components/Navbar';
 import AdminNavbar from './components/AdminNavbar';
@@ -28,16 +29,20 @@ import AdminAssignChapters from './pages/AdminAssignChapters';
 import UserNotifications from './pages/UserNotifications';
 import AdminNotifications from './pages/AdminNotifications';
 import UserProfile from './pages/UserProfile';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
+  const location = useLocation(); // 🔸 Get current path
 
-  // Debug logs (optional)
+  // Show default Navbar on public pages, even if role exists
+  const isPublicPage = ["/", "/signin", "/signup", "/about", "/contact", "/register/vendor"].includes(location.pathname);
+
+  // Debug logs
   const DEBUG = false;
   if (DEBUG) {
-    console.log("Role from AuthContext:", role);
-    console.log("User from AuthContext:", user);
-    console.log("Loading status:", loading);
+    console.log("Location:", location.pathname);
+    console.log("Role:", role);
   }
 
   if (loading) {
@@ -46,11 +51,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] text-black">
-      {/* Navbar Logic */}
-      {role === 'admin' && <AdminNavbar />}
-      {role === 'user' && <UserNavbar />}
-      {role === 'vendor' && <VendorNavbar />}
-      {!role && <Navbar />}
+      {/* Navbar Handling */}
+      {isPublicPage ? (
+        <Navbar />
+      ) : role === 'admin' ? (
+        <AdminNavbar />
+      ) : role === 'user' ? (
+        <UserNavbar />
+      ) : role === 'vendor' ? (
+        <VendorNavbar />
+      ) : (
+        <Navbar />
+      )}
 
       {/* Routes */}
       <Routes>
@@ -59,24 +71,24 @@ function App() {
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/register/vendor" element={<VendorRegister />} />
-        <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-        <Route path="/admin/upload" element={<AdminUploadFlow />} />
-        <Route path="/admin/edit/:id" element={<EditBook />} />
-        <Route path="/admin/book/:id" element={<AdminBookChapters />} />
-        <Route path="/user/book/:id" element={<UserBookChapters />} />
-        <Route path="/admin/book/:bookId/chapter/:chapterId/preview" element={<ChapterPreview />} />
-        <Route path="/preview/:bookId/:chapterId" element={<ChapterPreview />} />
-        <Route path="/admin/access-requests" element={<AdminAccessRequests />} />
-        <Route path="/admin/access-manager" element={<AdminAccessManager />} />
-        <Route path="/admin/activity-report" element={<AdminActivityDashboard />} />
-        <Route path="/admin/assign-chapters" element={<AdminAssignChapters />} />
-        <Route path="/myfiles" element={<MyFiles />} />
-        <Route path="/notifications" element={<UserNotifications />} />
-         <Route path="/admin/notifications" element={<AdminNotifications />} />
-         <Route path="/profile" element={<UserProfile />} />
+        <Route path="/vendor/dashboard" element={<ProtectedRoute><VendorDashboard /></ProtectedRoute>} />
+        <Route path="/admin/upload" element={<ProtectedRoute><AdminUploadFlow /></ProtectedRoute>} />
+        <Route path="/admin/edit/:id" element={<ProtectedRoute><EditBook /></ProtectedRoute>} />
+        <Route path="/admin/book/:id" element={<ProtectedRoute><AdminBookChapters /></ProtectedRoute>} />
+        <Route path="/user/book/:id" element={<ProtectedRoute><UserBookChapters /></ProtectedRoute>} />
+        <Route path="/admin/book/:bookId/chapter/:chapterId/preview" element={<ProtectedRoute><ChapterPreview /></ProtectedRoute>} />
+        <Route path="/preview/:bookId/:chapterId" element={<ProtectedRoute><ChapterPreview /></ProtectedRoute>} />
+        <Route path="/admin/access-requests" element={<ProtectedRoute><AdminAccessRequests /></ProtectedRoute>} />
+        <Route path="/admin/access-manager" element={<ProtectedRoute><AdminAccessManager /></ProtectedRoute>} />
+        <Route path="/admin/activity-report" element={<ProtectedRoute><AdminActivityDashboard /></ProtectedRoute>} />
+        <Route path="/admin/assign-chapters" element={<ProtectedRoute><AdminAssignChapters /></ProtectedRoute>} />
+        <Route path="/myfiles" element={<ProtectedRoute><MyFiles /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><UserNotifications /></ProtectedRoute>} />
+        <Route path="/admin/notifications" element={<ProtectedRoute><AdminNotifications /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
       </Routes>
     </div>
   );

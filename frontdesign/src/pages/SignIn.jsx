@@ -1,9 +1,9 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { AuthContext } from '../authContext';
-import socket from '../socket'; // ✅ Import socket instance
+import socket from '../socket';
 import { BASE_URL } from '../config';
 
 export default function SignIn() {
@@ -14,14 +14,28 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
 
+  // 🔐 Prevent back to protected pages after logout
+  useEffect(() => {
+    localStorage.removeItem('user'); // forcefully clear session
+    localStorage.removeItem('role');
+
+    // Prevent back navigation
+    window.history.pushState(null, '', window.location.href);
+    window.onpopstate = () => {
+      window.history.go(1); // disallow going back to previous session
+    };
+
+    return () => {
+      window.onpopstate = null; // clean up after login
+    };
+  }, []);
+
   const validate = () => {
     const newErrors = {};
     if (!email) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Email is invalid';
-
     if (!password) newErrors.password = 'Password is required';
     else if (password.length < 6) newErrors.password = 'Minimum 6 characters required';
-
     return newErrors;
   };
 
@@ -29,46 +43,33 @@ export default function SignIn() {
     e.preventDefault();
     const formErrors = validate();
     setErrors(formErrors);
-
     if (Object.keys(formErrors).length > 0) return;
 
     try {
-      const res = await axios.post(`${BASE_URL}/api/auth/signin`, {
-        email,
-        password
-      });
-
+      const res = await axios.post(`${BASE_URL}/api/auth/signin`, { email, password });
       const { token, user, role } = res.data;
 
-      // ✅ Combine token into user object
       const userWithToken = { ...user, token };
-
-      // ✅ Save to localStorage
       localStorage.setItem('user', JSON.stringify(userWithToken));
       localStorage.setItem('role', role);
-
-      // ✅ Update auth context
       login(userWithToken, role);
-
-      // ✅ Register socket for real-time notifications
       socket.emit('register', user._id);
 
-      // ✅ Navigate by role
+      // 🧹 Clear popstate blocker after successful login
+      window.onpopstate = null;
+
+      // 🧭 Redirect & replace history so back doesn't go to sign-in
       if (role === 'admin') {
-        navigate('/admin/dashboard');
+        navigate('/admin/dashboard', { replace: true });
       } else if (role === 'vendor') {
-        navigate('/vendor/dashboard');
+        navigate('/vendor/dashboard', { replace: true });
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
 
     } catch (err) {
       console.error(err);
-      if (err.response?.data?.message) {
-        alert(err.response.data.message);
-      } else {
-        alert("Something went wrong. Please try again.");
-      }
+      alert(err.response?.data?.message || "Something went wrong. Please try again.");
     }
   };
 
@@ -81,7 +82,6 @@ export default function SignIn() {
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {/* Email */}
           <div className="relative">
             <Mail className="absolute top-3 left-3 text-gray-400" size={20} />
             <input
@@ -96,7 +96,6 @@ export default function SignIn() {
             {errors.email && <p className="text-red-500 text-sm mt-1 ml-1">{errors.email}</p>}
           </div>
 
-          {/* Password */}
           <div className="relative">
             <Lock className="absolute top-3 left-3 text-gray-400" size={20} />
             <input
@@ -111,7 +110,6 @@ export default function SignIn() {
             {errors.password && <p className="text-red-500 text-sm mt-1 ml-1">{errors.password}</p>}
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             className="w-full bg-[#4457ff] hover:bg-[#3a4ed1] text-white py-2.5 rounded-lg font-semibold transition-all duration-200 shadow hover:shadow-md"
