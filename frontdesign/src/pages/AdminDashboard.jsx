@@ -36,7 +36,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] pt-20 px-6 md:px-12">
-      <h2 className="text-3xl font-bold text-[#16355a] mb-6">📚 Admin Book Library</h2>
+      <h2 className="text-3xl font-bold text-[#16355a] mb-6"></h2>
 
       {books.length === 0 ? (
         <p className="text-gray-500">No books uploaded yet.</p>

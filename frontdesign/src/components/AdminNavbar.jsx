@@ -31,6 +31,7 @@ export default function AdminNavbar() {
     { path: '/admin/activity-report', label: 'Activity' },
     { path: '/admin/assign-chapters', label: 'Assign' },
     { path: '/admin/notifications', label: 'notification' },
+    { path: '/admin/stats', label: 'stats' },
   ];
 
   // 🧠 Fetch request count

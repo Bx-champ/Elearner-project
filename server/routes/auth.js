@@ -1,18 +1,30 @@
 const express = require('express');
-
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const Notification = require('../models/Notification');
-
 const User = require('../models/User');
 const Admin = require('../models/Admin');
 const Vendor = require('../models/Vendor');
 const Book = require('../models/Book');
 const ChapterAccessRequest = require('../models/ChapterAccessRequest');
 const mongoose = require('mongoose');
-const ActivityLog = require('../models/ActivityLog'); // ✅ You already have this model
+const ActivityLog = require('../models/ActivityLog');
+const ChapterAssignment = require('../models/ChapterAssignment');
+const fetch = require('node-fetch');
+const { PDFDocument } = require('pdf-lib');
+
+// Imports for file system and running commands
+const fs = require('fs/promises');
+const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+// --- Import the authentication middleware ---
+const verifyToken = require('../middlewares/verifyToken');
+
 
 require('dotenv').config();
 
@@ -27,8 +39,21 @@ const s3 = new S3Client({
   }
 });
 
+// Multer setup
+const upload = multer({ storage: multer.memoryStorage() });
 
-//////////////////////////////////////////////////////////////////////////////
+// Helper to upload file to S3
+const uploadFileToS3 = async (buffer, key, mimetype) => {
+  await s3.send(new PutObjectCommand({
+    Bucket: process.env.AWS_BUCKET_NAME,
+    Key: key,
+    Body: buffer,
+    ContentType: mimetype
+  }));
+  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+};
+
+// ... (createNotification, signin, signup routes remain the same)
 const createNotification = async ({ userId, message, type, forAdmin = false }, req = null) => {
   try {
     const notification = await new Notification({
@@ -49,27 +74,6 @@ const createNotification = async ({ userId, message, type, forAdmin = false }, r
   } catch (err) {
     console.error('🔔 Notification error:', err.message);
   }
-};
-
-
-
-////////////////////////////////////////////////////////////////////////////
-
-
-
-
-// Multer setup
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Helper to upload file to S3
-const uploadFileToS3 = async (buffer, key, mimetype) => {
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.AWS_BUCKET_NAME,
-    Key: key,
-    Body: buffer,
-    ContentType: mimetype
-  }));
-  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 };
 
 // ==================== AUTH ====================
@@ -94,23 +98,18 @@ router.post('/signin', async (req, res) => {
 
     const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-// Save the token in the corresponding model
-if (role === 'user') {
-  await User.findByIdAndUpdate(user._id, { currentToken: token });
-} else if (role === 'admin') {
-  await Admin.findByIdAndUpdate(user._id, { currentToken: token });
-} else if (role === 'vendor') {
-  await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
-}
+    if (role === 'user') {
+      await User.findByIdAndUpdate(user._id, { currentToken: token });
+    } else if (role === 'admin') {
+      // Assuming Admin model has currentToken field
+      await Admin.findByIdAndUpdate(user._id, { currentToken: token });
+    } else if (role === 'vendor') {
+      // Assuming Vendor model has currentToken field
+      await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
+    }
 
-    const userInfo = {
-  _id: user._id,
-  name: user.name,
-  email: user.email
-};
-
-res.json({ token, role, user: userInfo, message: `${role} login success` });
-
+    const userInfo = { _id: user._id, name: user.name, email: user.email };
+    res.json({ token, role, user: userInfo, message: `${role} login success` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
@@ -194,14 +193,20 @@ router.delete('/admin/book/:id', async (req, res) => {
   }
 });
 
+
+// ==================== BOOK UPDATE ROUTE WITH PROGRESS BAR ====================
+// ==================== CORRECTED PARALLEL BOOK UPDATE ROUTE ====================
 router.put('/admin/book/:id', upload.any(), async (req, res) => {
+  const tempDir = path.join(__dirname, '..', 'temp');
+  await fs.mkdir(tempDir, { recursive: true });
+
   try {
     const { name, subject, tags, contents } = req.body;
     const chaptersMeta = JSON.parse(req.body.chapters);
     const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).json({ message: 'Book not found' });
 
-    // Handle cover
+    // --- Handle cover ---
     const coverFile = req.files.find(f => f.fieldname === 'cover');
     if (coverFile) {
       if (book.coverUrl) {
@@ -214,23 +219,21 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
       book.coverUrl = await uploadFileToS3(coverFile.buffer, coverKey, coverFile.mimetype);
     }
 
-    // Prepare maps
     const existingMap = {};
     book.chapters.forEach(ch => existingMap[ch._id?.toString()] = ch);
     const updatedChapters = [];
     const deleteKeys = [];
 
-    // Loop over incoming chapter metadata
+    let mainPdfDoc = null;
+
     for (let idx = 0; idx < chaptersMeta.length; idx++) {
       const meta = chaptersMeta[idx];
-
-      // Validate page numbers
-      if (meta.fromPage && meta.toPage && Number(meta.fromPage) > Number(meta.toPage)) {
-        return res.status(400).json({ message: `Invalid page range in chapter ${meta.name}` });
-      }
+      const sanitizedSubchapters = (meta.subchapters || []).filter(sub =>
+        sub.name && sub.fromPage != null && sub.toPage != null
+      );
 
       if (meta._id && existingMap[meta._id]) {
-        // Existing chapter
+        // --- Existing chapter ---
         const ch = existingMap[meta._id];
         ch.name = meta.name;
         ch.description = meta.description;
@@ -238,32 +241,58 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
         ch.order = idx;
         ch.fromPage = meta.fromPage;
         ch.toPage = meta.toPage;
-        ch.subchapters = meta.subchapters || [];
+        ch.subchapters = sanitizedSubchapters;
         updatedChapters.push(ch);
         delete existingMap[meta._id];
       } else {
-        // New chapter
+        // --- New chapter ---
         let pdfUrl = '';
-        const pdfFile = req.files.find(f => f.originalname === meta.uploadedFileName);
-        if (pdfFile) {
-          const pdfKey = `books/chapters/${Date.now()}-${pdfFile.originalname}`;
-          pdfUrl = await uploadFileToS3(pdfFile.buffer, pdfKey, pdfFile.mimetype);
+
+        // Try split from main book PDF
+        if (!mainPdfDoc) {
+          const pdfResponse = await fetch(book.pdfUrl);
+          const mainPdfBytes = await pdfResponse.arrayBuffer();
+          mainPdfDoc = await PDFDocument.load(mainPdfBytes, { ignoreEncryption: true });
         }
 
+        const fromPage = Number(meta.fromPage);
+        const toPage = Number(meta.toPage);
+        if (fromPage <= 0 || toPage > mainPdfDoc.getPageCount() || fromPage > toPage) {
+          return res.status(400).json({ message: `Invalid page range for "${meta.name}"` });
+        }
+
+        const chapterPdfDoc = await PDFDocument.create();
+        const copiedPages = await chapterPdfDoc.copyPages(mainPdfDoc, Array.from({ length: toPage - fromPage + 1 }, (_, i) => fromPage - 1 + i));
+        copiedPages.forEach(page => chapterPdfDoc.addPage(page));
+        const chapterPdfBytes = await chapterPdfDoc.save();
+
+        const tempInputPath = path.join(tempDir, `input-${Date.now()}-${idx}.pdf`);
+        const tempOutputPath = path.join(tempDir, `output-${Date.now()}-${idx}.pdf`);
+        await fs.writeFile(tempInputPath, chapterPdfBytes);
+
+        // const qpdfCommand = '"D:\\qpdfff\\qpdf-12.2.0-mingw64\\bin\\qpdf.exe"';
+        const qpdfCommand = 'qpdf';
+        await execPromise(`${qpdfCommand} --linearize "${tempInputPath}" "${tempOutputPath}"`);
+
+        const linearizedPdfBuffer = await fs.readFile(tempOutputPath);
+        const chapterKey = `books/chapters/${book._id}/${meta.name.replace(/\s+/g, '-')}-${Date.now()}.pdf`;
+        pdfUrl = await uploadFileToS3(linearizedPdfBuffer, chapterKey, 'application/pdf');
+
         updatedChapters.push({
+          _id: new mongoose.Types.ObjectId(),
           name: meta.name,
           description: meta.description,
           price: meta.price,
           order: idx,
           pdfUrl,
-          fromPage: meta.fromPage,
-          toPage: meta.toPage,
-          subchapters: meta.subchapters || []
+          fromPage,
+          toPage,
+          subchapters: sanitizedSubchapters
         });
       }
     }
 
-    // Delete removed chapter PDFs
+    // --- Delete removed chapters ---
     for (const ch of Object.values(existingMap)) {
       if (ch.pdfUrl) {
         deleteKeys.push({ Key: ch.pdfUrl.split('.com/')[1] });
@@ -277,7 +306,7 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
       }));
     }
 
-    // Final book update
+    // --- Final update ---
     book.name = name;
     book.subject = subject;
     book.tags = tags;
@@ -286,16 +315,61 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
     book.price = updatedChapters.reduce((sum, ch) => sum + Number(ch.price || 0), 0);
 
     await book.save();
-    res.json({ message: '✅ Book updated', book });
+    res.json({ message: '✅ Book updated successfully', book });
 
   } catch (err) {
     console.error('Update error:', err);
-    res.status(500).json({ message: '❌ Update failed' });
+    res.status(500).json({ message: '❌ Update failed', error: err.message });
+  } finally {
+    try {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    } catch (cleanupError) {
+      console.error("Failed to cleanup temp directory:", cleanupError);
+    }
   }
 });
 
+// ✅ --- NEW ROUTE TO DELETE A CHAPTER ---
+router.delete('/admin/book/:bookId/chapter/:chapterId', verifyToken, async (req, res) => {
+    try {
+        const { bookId, chapterId } = req.params;
+        const book = await Book.findById(bookId);
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        const chapterIndex = book.chapters.findIndex(ch => ch._id.toString() === chapterId);
+        if (chapterIndex === -1) {
+            return res.status(404).json({ message: 'Chapter not found' });
+        }
+
+        const chapterToDelete = book.chapters[chapterIndex];
+
+        // 1. Delete the chapter's PDF from AWS S3 if it exists
+        if (chapterToDelete.pdfUrl) {
+            const key = chapterToDelete.pdfUrl.split('.com/')[1];
+            await s3.send(new DeleteObjectsCommand({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Delete: { Objects: [{ Key: key }] }
+            }));
+        }
+
+        // 2. Remove the chapter from the book's array
+        book.chapters.splice(chapterIndex, 1);
+
+        // 3. Save the updated book document
+        await book.save();
+
+        res.json({ message: 'Chapter deleted successfully', book });
+
+    } catch (err) {
+        console.error('Chapter delete error:', err);
+        res.status(500).json({ message: 'Failed to delete chapter', error: err.message });
+    }
+});
 
 
+// ... (The rest of your routes, like /book/:bookId/chapter/:chapterId, etc., remain unchanged)
 router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
   try {
     const { bookId, chapterId } = req.params;
@@ -305,13 +379,19 @@ router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
     const chapter = book.chapters.id(chapterId);
     if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
 
+    const adjustedSubchapters = (chapter.subchapters || []).map(sub => ({
+        name: sub.name,
+        fromPage: sub.fromPage - chapter.fromPage + 1,
+        toPage: sub.toPage - chapter.fromPage + 1,
+    }));
+
     res.json({
-      pdfUrl: book.pdfUrl,
-      fromPage: chapter.fromPage,
-      toPage: chapter.toPage,
+      pdfUrl: chapter.pdfUrl,
+      fromPage: 1,
+      toPage: chapter.toPage - chapter.fromPage + 1,
       name: chapter.name,
       description: chapter.description,
-      subchapters: chapter.subchapters || [] // ✅ Add this line
+      subchapters: adjustedSubchapters
     });
   } catch (err) {
     console.error('Error fetching chapter preview:', err);
@@ -319,39 +399,31 @@ router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
   }
 });
 
-
-
-
-// POST: Request access to chapters
 router.post('/request-access', async (req, res) => {
   try {
-    // const { userId, bookId, chapterIds } = req.body;
-
     const token = req.headers.authorization?.split(' ')[1];
-if (!token) return res.status(401).json({ message: 'No token provided' });
+    if (!token) return res.status(401).json({ message: 'No token provided' });
 
-let decoded;
-try {
-  decoded = jwt.verify(token, process.env.JWT_SECRET);
-} catch (err) {
-  return res.status(401).json({ message: 'Invalid token' });
-}
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
 
-const userId = decoded.id;
-const { bookId, chapterIds } = req.body;
-
+    const userId = decoded.id;
+    const { bookId, chapterIds } = req.body;
 
     if (!userId || !bookId || !Array.isArray(chapterIds) || chapterIds.length === 0) {
       return res.status(400).json({ message: 'Invalid request payload' });
     }
 
-   const existingRequest = await ChapterAccessRequest.findOne({
-  userId,
-  bookId,
-  status: 'pending',
-  chapters: { $in: chapterIds }
-});
-
+    const existingRequest = await ChapterAccessRequest.findOne({
+      userId,
+      bookId,
+      status: 'pending',
+      chapters: { $in: chapterIds }
+    });
 
     if (existingRequest) {
       return res.status(409).json({ message: 'Already requested access for selected chapters' });
@@ -364,33 +436,22 @@ const { bookId, chapterIds } = req.body;
     });
 
     await request.save();
-//////////////////////////////////////////////////////////////
+
     const book = await Book.findById(bookId);
-const chapterNames = book.chapters
-  .filter(ch => chapterIds.includes(ch._id.toString()))
-  .map(ch => ch.name);
+    const chapterNames = book.chapters
+      .filter(ch => chapterIds.includes(ch._id.toString()))
+      .map(ch => ch.name);
 
-const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+    const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+    await createNotification({ userId, type: 'requestSubmitted', message }, req);
 
-await createNotification({ userId, type: 'requestSubmitted', message }, req);
-// 1️⃣ Fetch user details
-const user = await User.findById(userId);
+    const user = await User.findById(userId);
+    await createNotification({
+      message: `📨 Access request from "${user.name}" (${user.email}) for "${book.name}" - Chapters: ${chapterNames.join(', ')}`,
+      type: 'userRequest',
+      forAdmin: true
+    });
 
-// 2️⃣ Extract chapter names
-const chapterName = book.chapters
-  .filter(ch => chapterIds.includes(ch._id.toString()))
-  .map(ch => ch.name);
-
-// 3️⃣ Create admin notification
-await createNotification({
-  message: `📨 Access request from "${user.name}" (${user.email}) for "${book.name}" - Chapters: ${chapterName.join(', ')}`,
-  type: 'userRequest',
-  forAdmin: true
-});
-
-
-
-/////////////////////////////////////////////////////////////////////////
     res.status(201).json({ message: '✅ Access request submitted', request });
   } catch (err) {
     console.error('❌ Access request error:', err);
@@ -398,42 +459,22 @@ await createNotification({
   }
 });
 
-// GET: All access requests for admin
-// router.get('/admin/access-requests', async (req, res) => {
-//   try {
-//     const requests = await ChapterAccessRequest.find()
-//       .populate('userId', 'name email')
-//       .populate('bookId', 'name')
-//       .sort({ requestedAt: -1 });
-//     res.json({ success: true, requests });
-//   } catch (err) {
-//     console.error('Error fetching access requests:', err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
-
-
-
 router.get('/admin/access-requests', async (req, res) => {
   try {
     const requests = await ChapterAccessRequest.find()
       .populate('userId', 'name email')
-      .populate('bookId', 'name chapters') // 👈 include chapters
-      .lean() // better performance and easier manipulation
+      .populate('bookId', 'name chapters')
+      .lean()
       .sort({ requestedAt: -1 });
 
-    // Transform chapters to show names instead of IDs
     const transformed = requests.map(req => {
-      if (!req.bookId || !req.bookId.chapters) return null; // safeguard
+      if (!req.bookId || !req.bookId.chapters) return null;
       const chapterDetails = req.chapters.map(chId => {
         const found = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
         return found ? found.name : 'Unknown Chapter';
       });
 
-      return {
-        ...req,
-        chapterNames: chapterDetails // 👈 Add this field for frontend use
-      };
+      return { ...req, chapterNames: chapterDetails };
     }).filter(Boolean);
 
     res.json({ success: true, requests: transformed });
@@ -443,9 +484,6 @@ router.get('/admin/access-requests', async (req, res) => {
   }
 });
 
-
-
-// PUT: Admin approves or rejects a request
 router.put('/admin/access-request-status', async (req, res) => {
   try {
     const { requestId, status } = req.body;
@@ -459,29 +497,13 @@ router.put('/admin/access-request-status', async (req, res) => {
     request.status = status;
     await request.save();
 
-   ///////////////////////////////////////////////////////////
-   const book = await Book.findById(request.bookId);
-const chapterNames = book.chapters
-  .filter(ch => request.chapters.includes(ch._id.toString()))
-  .map(ch => ch.name);
+    const book = await Book.findById(request.bookId);
+    const chapterNames = book.chapters
+      .filter(ch => request.chapters.includes(ch._id.toString()))
+      .map(ch => ch.name);
 
-const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - chapters: ${chapterNames.join(', ')}`;
-
-await createNotification({ 
-  userId: request.userId, 
-  type: status, 
-  message 
-}, req);
-
-
-// await createNotification({
-//   message: `📨 Access request from user "${userId}" for "${book.name}"`,
-//   type: 'userRequest',
-//   forAdmin: true
-// });
-
-
-///////////////////////////////////////////////////////////////// 
+    const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+    await createNotification({ userId: request.userId, type: status, message }, req);
 
     res.json({ message: `✅ Request ${status}` });
   } catch (err) {
@@ -545,14 +567,6 @@ router.get('/user/chapter-access/all', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-// GET: User's approved chapter access for a book
 router.get('/user/chapter-access/:bookId', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -572,8 +586,6 @@ router.get('/user/chapter-access/:bookId', async (req, res) => {
   }))
 );
 
-
-
     res.json({ success: true, accessInfo });
   } catch (err) {
     console.error('Error fetching chapter access:', err);
@@ -582,6 +594,7 @@ router.get('/user/chapter-access/:bookId', async (req, res) => {
 });
 
 
+////////////////////////////////////////////////////////////////////////////////////////
 router.get('/admin/users-access', async (req, res) => {
   try {
     const approvedRequests = await ChapterAccessRequest.find({ status: 'approved' })
@@ -650,7 +663,8 @@ router.put('/admin/revoke-chapter-access', async (req, res) => {
   }
 });
 
-// GET: Admin view - All approved user chapter accesses
+
+
 router.get('/admin/access-management', async (req, res) => {
   try {
     const [approvedRequests, expiryAssignments] = await Promise.all([
@@ -666,14 +680,20 @@ router.get('/admin/access-management', async (req, res) => {
 
     // Process expiry-based assignments first (priority)
     expiryAssignments.forEach(assign => {
+      if (!assign.userId || !assign.bookId || !assign.chapterId) return;
+
       const key = `${assign.userId._id}_${assign.bookId._id}_${assign.chapterId}`;
+      const chapter = assign.bookId.chapters.find(
+        ch => ch._id.toString() === assign.chapterId.toString()
+      );
+
       accessMap.set(key, {
         type: 'expiry',
         chapterId: assign.chapterId,
         expiresAt: assign.expiresAt,
         bookId: assign.bookId._id,
         bookName: assign.bookId.name,
-        chapterName: assign.bookId.chapters.find(ch => ch._id.toString() === assign.chapterId.toString())?.name || 'Unknown',
+        chapterName: chapter?.name || 'Unknown',
         user: assign.userId,
         accessId: assign._id
       });
@@ -681,10 +701,15 @@ router.get('/admin/access-management', async (req, res) => {
 
     // Process approved requests if not already overridden by expiry
     approvedRequests.forEach(req => {
+      if (!req.userId || !req.bookId || !req.chapters) return;
+
       req.chapters.forEach(chId => {
         const key = `${req.userId._id}_${req.bookId._id}_${chId}`;
         if (!accessMap.has(key)) {
-          const chapter = req.bookId?.chapters?.find(ch => ch._id.toString() === chId.toString());
+          const chapter = req.bookId.chapters.find(
+            ch => ch._id.toString() === chId.toString()
+          );
+
           accessMap.set(key, {
             type: 'approved',
             chapterId: chId,
@@ -719,35 +744,22 @@ router.get('/admin/access-management', async (req, res) => {
 });
 
 
-
-
-// DELETE: Admin revokes access for a chapter
-// DELETE: Admin revokes access for a chapter////////////////////////////
 router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
   try {
     const { accessId, chapterId } = req.params;
     const accessRequest = await ChapterAccessRequest.findById(accessId);
     if (!accessRequest) {
-      return res.status(404).json({ message: 'Access request not found' });
-    }
-
-    const userId = accessRequest.userId;
-    const book = await Book.findById(accessRequest.bookId);
-    const chapter = book?.chapters.find(ch => ch._id.toString() === chapterId);
-
-    if (accessRequest.chapters.length === 1 || !chapterId) {
-      await ChapterAccessRequest.findByIdAndDelete(accessId);
+      const deleted = await ChapterAssignment.findOneAndDelete({ _id: accessId, chapterId: chapterId });
+       if (!deleted) return res.status(404).json({ message: 'No access found' });
     } else {
-      accessRequest.chapters = accessRequest.chapters.filter(
-        chId => chId.toString() !== chapterId
-      );
-      await accessRequest.save();
-    }
-
-    // 🔔 Send notification
-    if (book && chapter) {
-      const message = `❌ Access revoked for "${chapter.name}" in "${book.name}"`;
-      await createNotification({ userId, type: 'revoked', message }, req);
+        accessRequest.chapters = accessRequest.chapters.filter(
+          chId => chId.toString() !== chapterId
+        );
+        if (accessRequest.chapters.length === 0) {
+            await ChapterAccessRequest.findByIdAndDelete(accessId);
+        } else {
+            await accessRequest.save();
+        }
     }
 
     res.json({ message: '✅ Access revoked' });
@@ -757,14 +769,9 @@ router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
   }
 });
 
-
-// Inside auth.js or a new assignments.js
-const ChapterAssignment = require('../models/ChapterAssignment');
-
-// POST /api/auth/admin/assign-chapters
 router.post('/admin/assign-chapters', async (req, res) => {
   try {
-    const { userId, bookId, chapters, durationDays } = req.body; // chapters = array of chapterIds
+    const { userId, bookId, chapters, durationDays } = req.body;
 
     if (!userId || !bookId || !Array.isArray(chapters) || chapters.length === 0 || !durationDays) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -773,28 +780,13 @@ router.post('/admin/assign-chapters', async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-    // ✅ Step 1: Remove approved access if exists for the same chapters
     await ChapterAccessRequest.updateMany(
-      {
-        userId,
-        bookId,
-        status: 'approved',
-        chapters: { $in: chapters }
-      },
-      {
-        $pull: { chapters: { $in: chapters } }
-      }
+      { userId, bookId, status: 'approved', chapters: { $in: chapters } },
+      { $pull: { chapters: { $in: chapters } } }
     );
 
-    // ✅ Step 2: Delete empty approved requests
-    await ChapterAccessRequest.deleteMany({
-      userId,
-      bookId,
-      status: 'approved',
-      chapters: { $size: 0 }
-    });
+    await ChapterAccessRequest.deleteMany({ userId, bookId, status: 'approved', chapters: { $size: 0 } });
 
-    // ✅ Step 3: Create expiry-based assignments
     const assignments = chapters.map(chapterId => ({
       userId,
       bookId,
@@ -805,26 +797,19 @@ router.post('/admin/assign-chapters', async (req, res) => {
 
     await ChapterAssignment.insertMany(assignments);
 
-    // ✅ Step 4: Send Notifications to user per chapter
-  // ✅ Step 4: Send Notifications to user + admin per chapter
-const book = await Book.findById(bookId);
-const user = await User.findById(userId); // 🆕 fetch user details
+    const book = await Book.findById(bookId);
+    const user = await User.findById(userId);
 
-for (const chapterId of chapters) {
-  const chapter = book.chapters.find(ch => ch._id.toString() === chapterId.toString());
-  if (chapter) {
-    const messageToUser = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
-    
-    // Notify user
-    await createNotification({ userId, type: 'assigned', message: messageToUser }, req);
+    for (const chapterId of chapters) {
+      const chapter = book.chapters.find(ch => ch._id.toString() === chapterId.toString());
+      if (chapter) {
+        const messageToUser = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
+        await createNotification({ userId, type: 'assigned', message: messageToUser }, req);
 
-    // Notify admin
-    const messageToAdmin = `🛡️ Assigned chapter "${chapter.name}" from "${book.name}" to user "${user.name}" (${user.email}) until ${expiresAt.toLocaleDateString()}`;
-    await createNotification({ message: messageToAdmin, type: 'assigned', forAdmin: true });
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////
+        const messageToAdmin = `🛡️ Assigned chapter "${chapter.name}" from "${book.name}" to user "${user.name}" (${user.email}) until ${expiresAt.toLocaleDateString()}`;
+        await createNotification({ message: messageToAdmin, type: 'assigned', forAdmin: true });
+      }
+    }
 
     res.status(201).json({ message: '✅ Chapters assigned successfully with expiry' });
   } catch (err) {
@@ -833,12 +818,6 @@ for (const chapterId of chapters) {
   }
 });
 
-
-
-
-// const ActivityLog = require('../models/ActivityLog');
-
-// POST /api/auth/activity-log
 router.post('/activity-log', async (req, res) => {
   try {
     const { bookId, chapterId, pageNum, duration } = req.body;
@@ -848,20 +827,18 @@ router.post('/activity-log', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    console.log('📥 Activity POST:', { userId, bookId, chapterId, pageNum, duration });
     let log = await ActivityLog.findOne({ userId, bookId, chapterId });
 
     if (!log) {
-  log = new ActivityLog({
-    userId,
-    bookId,
-    chapterId,
-    pagesViewed: [pageNum],
-    totalTimeSpent: duration,
-    lastActive: new Date() // ✅ add this
-  });
-}
-else {
+      log = new ActivityLog({
+        userId,
+        bookId,
+        chapterId,
+        pagesViewed: [pageNum],
+        totalTimeSpent: duration,
+        lastActive: new Date()
+      });
+    } else {
       if (!log.pagesViewed.includes(pageNum)) {
         log.pagesViewed.push(pageNum);
       }
@@ -870,7 +847,6 @@ else {
     }
 
     await log.save();
-    console.log('✅ Activity saved:', log);
     res.json({ success: true, log });
   } catch (err) {
     console.error('Activity log error:', err);
@@ -878,68 +854,46 @@ else {
   }
 });
 
-
-
-
-// 📁 GET: Admin - Get active student report
 router.get('/admin/student-activity-report', async (req, res) => {
-  try {
-    // 1. Get users with activity logs
-    const logs = await ActivityLog.aggregate([
-      {
-        $group: {
-          _id: '$userId',
-          totalViews: { $sum: { $size: "$pagesViewed" } },
-          totalTime: { $sum: "$totalTimeSpent" },
-          lastSeen: { $max: "$lastActive" },
-        }
-      }
-    ]);
+    try {
+        const logs = await ActivityLog.aggregate([
+            {
+                $group: {
+                    _id: '$userId',
+                    totalViews: { $sum: { $size: "$pagesViewed" } },
+                    totalTime: { $sum: "$totalTimeSpent" },
+                    lastSeen: { $max: "$lastActive" },
+                }
+            }
+        ]);
 
-    // 2. Fetch all users who either have access or activity
-    const [accessUsers, allUsers] = await Promise.all([
-      ChapterAccessRequest.distinct('userId', { status: 'approved' }),
-      ChapterAssignment.distinct('userId')
-    ]);
+        const userIdsWithActivity = logs.map(log => log._id);
+        const users = await User.find({ _id: { $in: userIdsWithActivity } }).lean();
 
-    const allUserIds = new Set([
-      ...logs.map(log => log._id.toString()),
-      ...accessUsers.map(id => id.toString()),
-      ...allUsers.map(id => id.toString())
-    ]);
+        const logMap = new Map(logs.map(log => [log._id.toString(), log]));
 
-    const users = await User.find({ _id: { $in: Array.from(allUserIds) } }).lean();
+        const report = users.map(user => {
+            const log = logMap.get(user._id.toString());
+            return {
+                userId: user._id,
+                name: user.name,
+                email: user.email,
+                totalViews: log?.totalViews || 0,
+                totalTime: log?.totalTime || 0,
+                lastSeen: log?.lastSeen || null,
+            };
+        });
 
-    // 3. Map logs to user
-    const logMap = {};
-    logs.forEach(log => {
-      logMap[log._id.toString()] = log;
-    });
-
-    // 4. Combine into full report
-    const report = users.map(user => {
-      const log = logMap[user._id.toString()];
-      return {
-        userId: user._id,
-        name: user.name,
-        email: user.email,
-        totalViews: log?.totalViews || 0,
-        totalTime: log?.totalTime || 0,
-        lastSeen: log?.lastSeen || null,
-        isOnline: false // Optional: you could track this from sockets
-      };
-    });
-
-    res.json({ success: true, report });
-  } catch (err) {
-    console.error('📉 Error generating activity report:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+        res.json({ success: true, report });
+    } catch (err) {
+        console.error('📉 Error generating activity report:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 
 
-// GET: Assigned books and chapters for a user
+// GET: Assigned books and chapters for a user///////////////////////////////////
 router.get('/user/assigned-books', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -992,19 +946,7 @@ router.get('/user/assigned-books', async (req, res) => {
 });
 
 
-
-// GET /api/auth/admin/all-users
-router.get('/admin/all-users', async (req, res) => {
-  try {
-    const users = await User.find({}, 'email name'); // only return necessary fields
-    res.json({ success: true, users });
-  } catch (err) {
-    console.error('Failed to fetch users:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-
+/////////////////////////////////////////////////////////////////////////////////////////
 //DELETE: Admin revokes expiry-based chapter access
 router.delete('/admin/revoke-expiry-access/:userId/:bookId/:chapterId', async (req, res) => {
   const { userId, bookId, chapterId } = req.params;
@@ -1027,67 +969,77 @@ router.delete('/admin/revoke-expiry-access/:userId/:bookId/:chapterId', async (r
   }
 });
 
-////////////////////////////////////////////
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 router.get('/user/notifications', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No token' });
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'No token' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.id;
 
-    const notifications = await Notification.find({ userId }).sort({ createdAt: -1 });
-    res.json({ success: true, notifications });
-  } catch (err) {
-    console.error('Notification fetch error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+        const notifications = await Notification.find({ userId }).sort({ createdAt: -1 });
+        res.json({ success: true, notifications });
+    } catch (err) {
+        console.error('Notification fetch error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 router.put('/user/notifications/mark-read', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No token' });
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'No token' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.id;
 
-    await Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } });
-
-    res.json({ success: true, message: 'Notifications marked as read' });
-  } catch (err) {
-    console.error('Notification mark-read error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+        await Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } });
+        res.json({ success: true, message: 'Notifications marked as read' });
+    } catch (err) {
+        console.error('Notification mark-read error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
-
-
-// GET /api/auth/admin/notifications
 router.get('/admin/notifications', async (req, res) => {
+    try {
+        const notifications = await Notification.find({ forAdmin: true }).sort({ createdAt: -1 });
+        res.json({ success: true, notifications });
+    } catch (err) {
+        console.error('Admin notification fetch error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+// GET /api/auth/admin/all-users
+router.get('/admin/all-users', async (req, res) => {
   try {
-    const notifications = await Notification.find({ forAdmin: true }).sort({ createdAt: -1 });
-    res.json({ success: true, notifications });
+    const users = await User.find({}, 'email name'); // only return necessary fields
+    res.json({ success: true, users });
   } catch (err) {
-    console.error('Admin notification fetch error:', err);
+    console.error('Failed to fetch users:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-
-// PUT /api/auth/admin/notifications/mark-read
 router.put('/admin/notifications/mark-read', async (req, res) => {
-  try {
-    await Notification.updateMany({ forAdmin: true, isRead: false }, { $set: { isRead: true } });
-    res.json({ success: true, message: 'Admin notifications marked as read' });
-  } catch (err) {
-    console.error('Admin mark-read error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+    try {
+        await Notification.updateMany({ forAdmin: true, isRead: false }, { $set: { isRead: true } });
+        res.json({ success: true, message: 'Admin notifications marked as read' });
+    } catch (err) {
+        console.error('Admin mark-read error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 
-// GET /api/auth/user/activity-summary
+
+// GET /api/auth/user/activity-summary/////////////////////////////////////////////////////
 router.get('/user/activity-summary', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -1115,8 +1067,6 @@ router.get('/user/activity-summary', async (req, res) => {
   }
 });
 
-
-// POST /logout
 router.post('/logout', async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(400).json({ message: 'No token' });
@@ -1142,14 +1092,56 @@ router.post('/logout', async (req, res) => {
 
 
 
+router.get('/admin/user-stats', async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - 7);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+
+    const [today, week, year, recentUsers] = await Promise.all([
+      User.countDocuments({ createdAt: { $gte: todayStart } }),
+      User.countDocuments({ createdAt: { $gte: weekStart } }),
+      User.countDocuments({ createdAt: { $gte: yearStart } }),
+      User.find().sort({ createdAt: -1 }).limit(10).select('name email createdAt')
+    ]);
+
+    res.json({ today, week, year, recentUsers });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get user stats' });
+  }
+});
 
 
+router.get('/admin/platform-stats', async (req, res) => {
+  try {
+    const [bookCount, books, loggedInUsers, onlineUsersFromUser, onlineUsersFromActivity] = await Promise.all([
+      Book.countDocuments(),
+      Book.find({}, 'chapters'),
+      User.countDocuments({ currentToken: { $ne: null } }),
+      User.countDocuments({ isOnline: true }),
+      ActivityLog.distinct('userId', { isOnline: true }),
+    ]);
 
+    // Calculate total chapters
+    const totalChapters = books.reduce((sum, book) => sum + (book.chapters?.length || 0), 0);
 
+    // Merge unique online users from both User and ActivityLog
+    const onlineUserSet = new Set();
+    onlineUsersFromActivity.forEach(id => onlineUserSet.add(String(id)));
+    const totalOnlineUsers = onlineUserSet.size > onlineUsersFromUser ? onlineUserSet.size : onlineUsersFromUser;
 
+    res.json({
+      totalBooks: bookCount,
+      totalChapters,
+      loggedInUsers,
+      onlineUsers: totalOnlineUsers,
+    });
+  } catch (err) {
+    console.error('Error fetching platform stats:', err);
+    res.status(500).json({ error: 'Failed to fetch platform stats' });
+  }
+});
 
 module.exports = router;
-
-
-
-

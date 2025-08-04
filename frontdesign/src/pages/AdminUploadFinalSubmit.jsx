@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { BASE_URL } from '../config';
 
 export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
+  const cancelTokenSource = useRef(null); // 🔁 Store cancel token
 
   const handleSubmit = async () => {
     try {
@@ -12,41 +14,52 @@ export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
       setMessage('Uploading book data...');
 
       const formData = new FormData();
-
-      // ✅ Add book fields
       formData.append('name', bookData.name);
       formData.append('contents', bookData.contents);
       formData.append('subject', bookData.subject);
       formData.append('tags', bookData.tags);
-
-      // ✅ Add cover and book PDF
       formData.append('cover', bookData.coverPage);
       formData.append('pdf', bookData.bookPdf);
 
-      // ✅ Include chapter price and other metadata
       const chaptersMeta = chapterData.chapters.map((ch, index) => ({
         name: ch.name,
         description: ch.description,
         fromPage: ch.fromPage,
         toPage: ch.toPage,
-        price: ch.price, // ✅ Needed for total book price
+        price: ch.price,
         order: index,
       }));
-
       formData.append('chaptersMeta', JSON.stringify(chaptersMeta));
 
-      // ✅ Submit to backend
+      // 🔁 Create cancel token
+      cancelTokenSource.current = axios.CancelToken.source();
+
       const res = await axios.post(`${BASE_URL}/api/admin/save-book`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        cancelToken: cancelTokenSource.current.token,
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setMessage(`Uploading... ${percent}%`);
+        },
       });
 
       setMessage('✅ Book uploaded successfully!');
       console.log('Uploaded book:', res.data.book);
     } catch (err) {
-      console.error('Upload failed:', err);
-      setMessage('❌ Upload failed. Please try again.');
+      if (axios.isCancel(err)) {
+        setMessage('⚠️ Upload cancelled by user.');
+      } else {
+        console.error('Upload failed:', err);
+        setMessage('❌ Upload failed. Please try again.');
+      }
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleCancelUpload = () => {
+    if (cancelTokenSource.current) {
+      cancelTokenSource.current.cancel('Upload cancelled by user.');
     }
   };
 
@@ -70,15 +83,26 @@ export default function AdminUploadFinalSubmit({ bookData, chapterData }) {
           ))}
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={uploading}
-          className={`mt-6 ${
-            uploading ? 'bg-gray-400' : 'bg-[#4457ff] hover:bg-[#3b4ed3]'
-          } text-white py-2 px-6 rounded-lg shadow-md w-full font-semibold transition`}
-        >
-          {uploading ? 'Uploading...' : 'Upload Book 🚀'}
-        </button>
+        <div className="mt-6 space-y-3">
+          <button
+            onClick={handleSubmit}
+            disabled={uploading}
+            className={`w-full py-2 px-6 rounded-lg shadow-md font-semibold transition ${
+              uploading ? 'bg-gray-400' : 'bg-[#4457ff] hover:bg-[#3b4ed3]'
+            } text-white`}
+          >
+            {uploading ? 'Uploading...' : 'Upload Book 🚀'}
+          </button>
+
+          {uploading && (
+            <button
+              onClick={handleCancelUpload}
+              className="w-full py-2 px-6 rounded-lg shadow-md font-semibold bg-red-500 hover:bg-red-600 text-white transition"
+            >
+              Stop Upload ❌
+            </button>
+          )}
+        </div>
 
         {message && <p className="mt-4 text-center text-[#16355a] font-medium">{message}</p>}
       </div>

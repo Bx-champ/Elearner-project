@@ -8,7 +8,11 @@ const userSchema = new mongoose.Schema({
   type: String,
   default: 'user'
 },
- currentToken: { type: String, default: null }
-});
+ currentToken: { type: String, default: null },
+ isOnline: { type: Boolean, default: false },
+ },
+ { timestamps: true }
+
+);
 
 module.exports = mongoose.model('User', userSchema);

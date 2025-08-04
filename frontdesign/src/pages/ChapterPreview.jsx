@@ -1,297 +1,320 @@
-import '../pdfWorker';
+
+import '../pdfWorker'; // Ensures the PDF worker is bundled
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { useSpring, animated } from '@react-spring/web';
-import { useGesture } from '@use-gesture/react';
-import { BASE_URL } from '../config';
 import * as pdfjsLib from 'pdfjs-dist';
+import { BASE_URL } from '../config';
 
-const user = JSON.parse(localStorage.getItem('user'));
-
-export default function ChapterPreview() {
-  const { bookId, chapterId } = useParams();
-  const [data, setData] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1.0);
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  const containerRef = useRef(null);
-  const wrapperRef = useRef(null);
-  const zoomWrapperRef = useRef(null);
-
-  const [lastPageViewed, setLastPageViewed] = useState(null);
-  const [lastTimeStamp, setLastTimeStamp] = useState(Date.now());
-  const viewedPagesRef = useRef(new Set());
-
-  const [springStyle, api] = useSpring(() => ({ scale: 1 }));
-
-  // 🔒 Security
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) ||
-        (e.ctrlKey && ['U', 'S', 'P'].includes(e.key.toUpperCase()))
-      ) {
-        e.preventDefault();
-      }
-    };
-
-    const handleContextMenu = (e) => e.preventDefault();
-
-    const handleCopy = (e) => {
-      e.preventDefault();
-      alert('Copying is disabled!');
-    };
-
-   const handlePrintScreen = (e) => {
-  if (e.key === 'PrintScreen') {
-    alert('Screenshot detected. Logging out...');
-    localStorage.removeItem('user');
-    window.location.href = '/signin'; // or your actual login route
+// Helper to get user info safely from localStorage
+const getUserInfo = () => {
+  try {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  } catch (e) {
+    console.error("Failed to parse user from localStorage", e);
+    return null;
   }
 };
 
+export default function ChapterPreview() {
+  const { bookId, chapterId } = useParams();
+  const [chapterData, setChapterData] = useState(null);
+  const [error, setError] = useState('');
+  const [user, setUser] = useState(getUserInfo());
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isBlurred, setIsBlurred] = useState(false);
+  // ✅ --- New state for non-blocking notifications ---
+  const [securityNotification, setSecurityNotification] = useState('');
 
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handlePrintScreen);
+  const containerRef = useRef(null);
+  const pdfDocPromiseRef = useRef(null); 
+
+  // --- Effect 1: Enhanced Security Measures ---
+  useEffect(() => {
+    const handleContextMenu = (e) => e.preventDefault();
     document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('copy', handleCopy);
 
+    // This function shows a temporary, non-blocking message
+    const showNotification = (message) => {
+        setSecurityNotification(message);
+        setTimeout(() => {
+            setSecurityNotification('');
+        }, 3000); // Message disappears after 3 seconds
+    };
+
+    const handleKeyDown = (e) => {
+      if (
+        (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) ||
+        (e.ctrlKey && e.key.toUpperCase() === 'P') ||
+        (e.ctrlKey && e.key.toUpperCase() === 'S')
+      ) {
+        e.preventDefault();
+        showNotification('This functionality is disabled.');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    // ✅ --- FASTER PrintScreen Detection ---
+    // The 'keyup' event is reliable for detection. Removing the alert() makes it fast.
+    const handleKeyUp = (e) => {
+        if (e.key === 'PrintScreen') {
+            // Instantly blur the content to ruin the screenshot
+            setIsBlurred(true);
+            // Show a non-blocking notification instead of a blocking alert
+            showNotification('Screenshot attempt detected and blocked.');
+        }
+    };
+    window.addEventListener('keyup', handleKeyUp);
+
+    const handleBlur = () => setIsBlurred(true);
+    const handleFocus = () => setIsBlurred(false);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
+    // Cleanup function
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handlePrintScreen);
       document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('copy', handleCopy);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
-  // 🔍 Pinch & Wheel Zoom
-  useGesture(
-    {
-      onPinch: ({ offset: [d], event }) => {
-        event.preventDefault();
-        const newScale = Math.min(Math.max(d / 200 + 1, 0.5), 3);
-        api.start({ scale: newScale });
-      },
-      onWheel: ({ event }) => {
-        if (event.ctrlKey) {
-          event.preventDefault();
-          const delta = event.deltaY > 0 ? -0.1 : 0.1;
-          api.start((prev) => {
-            const newScale = Math.min(Math.max(prev.scale.get() + delta, 0.5), 3);
-            return { scale: newScale };
-          });
-        }
-      }
-    },
-    {
-      target: zoomWrapperRef,
-      eventOptions: { passive: false },
-      pinch: { scaleBounds: { min: 0.5, max: 3 }, rubberband: true },
-      wheel: { axis: 'y' }
-    }
-  );
-
+  // --- Effect 2: Fetch Metadata & Create Page Placeholders ---
   useEffect(() => {
+    let isMounted = true;
+    setError('');
+    setIsLayoutReady(false);
+
     axios.get(`${BASE_URL}/api/auth/book/${bookId}/chapter/${chapterId}`)
-      .then((res) => setData(res.data))
-      .catch((err) => console.error('Error loading chapter:', err));
+      .then(res => {
+        if (isMounted) {
+          if (!res.data.pdfUrl) {
+            throw new Error("PDF URL is missing in the API response.");
+          }
+          const data = res.data;
+          setChapterData(data);
+          
+          const container = containerRef.current;
+          if (container) {
+            container.innerHTML = '';
+            const pageCount = data.toPage - data.fromPage + 1;
+            for (let i = 1; i <= pageCount; i++) {
+              const pageWrapper = document.createElement('div');
+              pageWrapper.className = 'flex justify-center items-center mb-4 page-anchor bg-gray-200 rounded-md animate-pulse min-h-[500px]';
+              pageWrapper.setAttribute('data-page-number', i);
+              pageWrapper.innerHTML = `<p class="text-gray-400">Loading page ${i}...</p>`;
+              container.appendChild(pageWrapper);
+            }
+            setIsLayoutReady(true);
+          }
+        }
+      })
+      .catch(err => {
+        if (isMounted) setError(err.message || 'An unknown error occurred.');
+        console.error('A critical error occurred while fetching chapter data:', err);
+      });
+
+    return () => { isMounted = false; };
   }, [bookId, chapterId]);
 
-  useEffect(() => {
-    return () => {
-      if (lastPageViewed !== null) {
-        const duration = Math.floor((Date.now() - lastTimeStamp) / 1000);
-        sendActivityLog(lastPageViewed, duration);
-      }
-    };
-  }, [lastPageViewed, lastTimeStamp]);
 
+  // --- Effect 3: Progressively Load PDF and Attach Observers ---
   useEffect(() => {
-    if (!data?.pdfUrl) return;
+    if (!isLayoutReady || !chapterData) return;
 
-    const renderPDF = async () => {
+    let isMounted = true;
+    const observers = [];
+    let loadingTask = null;
+
+    const loadAndObserve = async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument(data.pdfUrl);
-        const pdf = await loadingTask.promise;
-        const { fromPage, toPage } = data;
+        loadingTask = pdfjsLib.getDocument({
+            url: chapterData.pdfUrl,
+            rangeChunkSize: 1048576, 
+            // rangeChunkSize: 65536,
+        });
+        
+        pdfDocPromiseRef.current = loadingTask.promise;
 
         const container = containerRef.current;
         if (!container) return;
 
-        // ✅ Prevent duplicate pages
-        while (container.firstChild) {
-          container.removeChild(container.firstChild);
-        }
+        const pageElements = container.querySelectorAll('.page-anchor');
+        pageElements.forEach(pageElement => {
+          const observer = new IntersectionObserver(async (entries, obs) => {
+            const entry = entries[0];
+            if (entry.isIntersecting) {
+              obs.unobserve(entry.target);
+              const pageNum = parseInt(entry.target.getAttribute('data-page-number'), 10);
+              
+              try {
+                const pdf = await pdfDocPromiseRef.current;
 
-        const pageWidth = 600;
-        const availableWidth = wrapperRef.current?.offsetWidth || 800;
-        const scaleBase = availableWidth / pageWidth;
-        const scale = scaleBase * zoomLevel;
-        const dpiScale = window.devicePixelRatio || 1;
+                ///////////////////////////////////////////////////
+                if (isMounted) {
+  // Trigger pre-render of first page immediately
+  const firstPage = await pdf.getPage(1);
+  const tempCanvas = document.createElement('canvas');
+  const context = tempCanvas.getContext('2d');
+  const viewport = firstPage.getViewport({ scale: 0.5 });
+  tempCanvas.height = viewport.height;
+  tempCanvas.width = viewport.width;
+  await firstPage.render({ canvasContext: context, viewport }).promise;
+  // Don't attach to DOM – this just triggers caching/preload
+}
+//////////////////////////////////////////////////////////////
 
-        for (let i = fromPage; i <= toPage; i++) {
-          const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale });
 
-          const canvas = document.createElement('canvas');
-          canvas.width = viewport.width * dpiScale;
-          canvas.height = viewport.height * dpiScale;
-          canvas.style.width = `${viewport.width}px`;
-          canvas.style.height = `${viewport.height}px`;
 
-          const context = canvas.getContext('2d');
-          context.setTransform(dpiScale, 0, 0, dpiScale, 0, 0);
-          await page.render({ canvasContext: context, viewport }).promise;
+                const page = await pdf.getPage(pageNum);
+                
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                
+                const lowResViewport = page.getViewport({ scale: 0.5 });
+                canvas.height = lowResViewport.height;
+                canvas.width = lowResViewport.width;
+                canvas.style.maxWidth = "800px";
+                canvas.style.width = "100%";
+                canvas.style.height = "auto";
+                canvas.classList.add('shadow-lg', 'rounded-md', 'blur-sm');
+                
+                entry.target.innerHTML = ''; 
+                entry.target.classList.remove('bg-gray-200', 'animate-pulse', 'min-h-[500px]');
+                entry.target.appendChild(canvas);
 
-          const wrapper = document.createElement('div');
-          wrapper.className = 'flex justify-center mb-4 page-anchor';
-          wrapper.setAttribute('data-page', i);
-          wrapper.appendChild(canvas);
-          container.appendChild(wrapper);
-        }
+                await page.render({ canvasContext: context, viewport: lowResViewport }).promise;
 
-        setupObserver();
+                if (isMounted) {
+                    const highResViewport = page.getViewport({ scale: 1.5 });
+                    canvas.height = highResViewport.height;
+                    canvas.width = highResViewport.width;
+                    await page.render({ canvasContext: context, viewport: highResViewport }).promise;
+                    canvas.classList.remove('blur-sm');
+                }
+
+              } catch (renderError) {
+                console.error(`Failed to render page ${pageNum}:`, renderError);
+                entry.target.innerHTML = `<p class="text-red-500">Error rendering page ${pageNum}.</p>`;
+              }
+            }
+          }, { rootMargin: '400px' });
+
+          observer.observe(pageElement);
+          observers.push(observer);
+        });
+
       } catch (err) {
-        console.error('Render error:', err);
+        if (isMounted) setError(err.message || 'An unknown error occurred during PDF setup.');
+        console.error('A critical error occurred during PDF setup:', err);
       }
     };
 
-    renderPDF();
-  }, [data, zoomLevel]);
+    loadAndObserve();
 
-  const setupObserver = () => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const now = Date.now();
-        entries.forEach((entry) => {
-          const pageNum = Number(entry.target.getAttribute('data-page'));
-          if (entry.isIntersecting) {
-            const duration = lastPageViewed !== null ? Math.floor((now - lastTimeStamp) / 1000) : 0;
-            if (lastPageViewed !== null) {
-              sendActivityLog(lastPageViewed, duration);
-            }
-            setLastPageViewed(pageNum);
-            setLastTimeStamp(now);
-            viewedPagesRef.current.add(pageNum);
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
+    return () => {
+      isMounted = false;
+      if (loadingTask) loadingTask.destroy();
+      observers.forEach(obs => obs.disconnect());
+    };
+  }, [isLayoutReady, chapterData]);
 
-    const anchors = containerRef.current?.querySelectorAll('.page-anchor');
-    anchors?.forEach((el) => observer.observe(el));
-  };
-
+  // --- Helper function to scroll to a specific page ---
   const scrollToPage = (pageNum) => {
-    const now = Date.now();
-    if (lastPageViewed !== null) {
-      const duration = Math.floor((now - lastTimeStamp) / 1000);
-      sendActivityLog(lastPageViewed, duration);
-    }
-
-    const target = containerRef.current?.querySelector(`.page-anchor[data-page="${pageNum}"]`);
+    const target = containerRef.current?.querySelector(`[data-page-number="${pageNum}"]`);
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setShowDropdown(false);
-      setLastPageViewed(pageNum);
-      setLastTimeStamp(now);
     }
   };
-
-  const sendActivityLog = async (pageNum, duration) => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const token = user?.token;
-      if (!token) return;
-
-      await axios.post(
-        `${BASE_URL}/api/auth/activity-log`,
-        { bookId, chapterId, pageNum, duration },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (err) {
-      console.error('❌ Log error:', err);
-    }
-  };
-
-  if (!data) return <p className="p-10">Loading...</p>;
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-[#f4f2ec] to-[#e8e6df] pt-20 px-2 md:px-6">
-
-      {/* 🔐 Watermark */}
+    <div className="relative min-h-screen bg-gray-100 pt-16 select-none">
+      
+      {/* Dynamic Watermark Layer */}
       {user && (
-        <div className="fixed top-24 left-4 z-50 opacity-10 text-xs md:text-sm text-black pointer-events-none select-none">
-          {user.email || user.name} | {new Date().toLocaleString()}
+        <div className="fixed inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <p className="text-[10vw] font-bold text-gray-500 opacity-10 transform -rotate-12 whitespace-nowrap">
+            {user.email || user.name}
+          </p>
         </div>
       )}
 
-      {/* 📑 Subchapter Dropdown */}
-      {data.subchapters?.length > 0 && (
-        <div className="fixed top-24 left-4 z-50">
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            className="bg-white border px-4 py-2 rounded-full shadow"
-          >
-            📑 Subchapters
-          </button>
-          {showDropdown && (
-            <div className="absolute mt-2 bg-white border rounded shadow max-h-80 overflow-y-auto w-56">
-              {data.subchapters.map((sub, i) => (
-                <button
-                  key={i}
-                  onClick={() => scrollToPage(Number(sub.fromPage))}
-                  className="block px-4 py-2 text-sm w-full text-left hover:bg-blue-100"
-                >
-                  🔹 {sub.name}
-                </button>
-              ))}
+      {/* Header */}
+      <header className="sticky top-0 bg-white/80 backdrop-blur-sm z-20 shadow-sm">
+        <div className="max-w-5xl mx-auto p-4 flex justify-between items-center">
+          <div>
+            {chapterData ? (
+              <>
+               <h1 className="text-xl md:text-2xl font-bold text-gray-800 break-words max-w-full">
+  {chapterData.name}
+</h1>
+<p className="text-xs md:text-sm text-gray-600 break-words max-w-full">
+  {chapterData.description}
+</p>
+
+              </>
+            ) : (
+               <div className="animate-pulse">
+                  <div className="h-8 bg-gray-300 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+               </div>
+            )}
+          </div>
+        </div>
+      </header>
+      
+      {/* Fixed Subchapter Dropdown */}
+      {chapterData?.subchapters?.length > 0 && (
+          <div className="fixed top-24 right-4 z-30">
+            <div className="relative">
+              <button 
+                onClick={() => setShowDropdown(!showDropdown)} 
+                className="bg-white border px-4 py-2 rounded-full shadow-lg text-sm hover:bg-gray-50 transition"
+              >
+                📑 Subchapters
+              </button>
+              {showDropdown && (
+                <div className="absolute right-0 mt-2 bg-white border rounded-lg shadow-xl max-h-80 overflow-y-auto w-64">
+                  {chapterData.subchapters.map((sub, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => scrollToPage(sub.fromPage)} 
+                      className="block px-4 py-3 text-sm w-full text-left hover:bg-blue-50 transition"
+                    >
+                      {sub.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+      )}
+
+      {/* ✅ --- Non-blocking Security Notification --- */}
+      {securityNotification && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full shadow-lg z-50">
+            {securityNotification}
         </div>
       )}
 
-      {/* 🔍 Zoom Controls */}
-      <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2 bg-white p-3 rounded shadow">
-        <div className="flex gap-2">
-          <button onClick={() => setZoomLevel(z => Math.min(z + 0.1, 3))} className="bg-gray-200 px-2 py-1 rounded">➕ Zoom</button>
-          <button onClick={() => setZoomLevel(z => Math.max(z - 0.1, 0.5))} className="bg-gray-200 px-2 py-1 rounded">➖ Zoom</button>
-          <button onClick={() => setZoomLevel(1.0)} className="bg-gray-200 px-2 py-1 rounded">🔄 Reset</button>
-        </div>
-      </div>
+      {/* Main Content Area */}
+      <main className="w-full p-4 relative">
+        {error && <div className="text-center text-red-500">Error: {error}</div>}
+        
+        {/* PDF Viewer with Blur Effect */}
+        <div
+          ref={containerRef}
+          className={`flex flex-col items-center gap-4 transition-all duration-300 ${isBlurred ? 'blur-xl' : 'blur-none'}`}
+        />
 
-      {/* 📄 PDF Viewer */}
-      <div ref={wrapperRef} className="w-full h-full overflow-auto pb-10">
-        <div className="px-2 md:px-6">
-          <h2 className="text-2xl font-bold text-[#16355a] mb-2">{data.name}</h2>
-          <p className="text-sm text-gray-600 mb-6">{data.description}</p>
-
-          <animated.div
-            ref={zoomWrapperRef}
-            style={{
-              ...springStyle,
-              transformOrigin: 'center top',
-              display: 'inline-block',
-              overflow: 'visible'
-            }}
-            className="min-w-full overflow-auto"
-          >
-            <div
-              ref={containerRef}
-              className="min-w-fit"
-              style={{
-                whiteSpace: 'nowrap',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center'
-              }}
-            />
-          </animated.div>
-        </div>
-      </div>
+        {/* Transparent Security Overlay */}
+        <div className="absolute inset-0 z-20"></div>
+      </main>
     </div>
   );
 }

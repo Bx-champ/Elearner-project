@@ -30,6 +30,7 @@ import UserNotifications from './pages/UserNotifications';
 import AdminNotifications from './pages/AdminNotifications';
 import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminStats from './pages/AdminStats';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
@@ -89,6 +90,7 @@ function App() {
         <Route path="/notifications" element={<ProtectedRoute><UserNotifications /></ProtectedRoute>} />
         <Route path="/admin/notifications" element={<ProtectedRoute><AdminNotifications /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+        <Route path="/admin/stats" element={<ProtectedRoute><AdminStats /></ProtectedRoute>} />
       </Routes>
     </div>
   );
