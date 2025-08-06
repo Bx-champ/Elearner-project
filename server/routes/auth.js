@@ -50,7 +50,8 @@ const uploadFileToS3 = async (buffer, key, mimetype) => {
     Body: buffer,
     ContentType: mimetype
   }));
-  return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  // return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+   return `${process.env.CLOUDFRONT_DOMAIN}/${key}`;
 };
 
 // ... (createNotification, signin, signup routes remain the same)
@@ -210,10 +211,23 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
     const coverFile = req.files.find(f => f.fieldname === 'cover');
     if (coverFile) {
       if (book.coverUrl) {
-        await s3.send(new DeleteObjectsCommand({
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Delete: { Objects: [{ Key: book.coverUrl.split('.com/')[1] }] }
-        }));
+        if (book.coverUrl) {
+  // const match = book.coverUrl.match(/\.com\/(.+)/);
+  const match = book.coverUrl.match(/https?:\/\/[^/]+\/(.+)/);
+
+  const coverKey = match ? match[1] : null;
+
+  if (coverKey) {
+    await s3.send(new DeleteObjectsCommand({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Delete: { Objects: [{ Key: coverKey }] }
+    }));
+  } else {
+    console.warn('⚠️ Could not extract key from coverUrl:', book.coverUrl);
+  }
+}
+
+
       }
       const coverKey = `books/${Date.now()}-${coverFile.originalname}`;
       book.coverUrl = await uploadFileToS3(coverFile.buffer, coverKey, coverFile.mimetype);
@@ -295,7 +309,10 @@ router.put('/admin/book/:id', upload.any(), async (req, res) => {
     // --- Delete removed chapters ---
     for (const ch of Object.values(existingMap)) {
       if (ch.pdfUrl) {
-        deleteKeys.push({ Key: ch.pdfUrl.split('.com/')[1] });
+        // deleteKeys.push({ Key: ch.pdfUrl.split('.com/')[1] });
+        const key = ch.pdfUrl?.split('.com/')[1];
+        if (key) deleteKeys.push({ Key: key });
+
       }
     }
 
@@ -1143,5 +1160,8 @@ router.get('/admin/platform-stats', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch platform stats' });
   }
 });
+
+
+
 
 module.exports = router;

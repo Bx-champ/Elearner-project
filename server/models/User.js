@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
 },
  currentToken: { type: String, default: null },
  isOnline: { type: Boolean, default: false },
+//  lastSeenAt: { type: Date, default: null },///////////
  },
  { timestamps: true }
 

@@ -6,6 +6,31 @@ import { Trash2, GripVertical, PlusCircle, Plus, Trash } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BASE_URL } from '../config';
+import { useNavigate, UNSAFE_NavigationContext } from 'react-router-dom';
+import { useContext } from 'react';
+
+function useBlocker(shouldBlock) {
+  const navigator = useContext(UNSAFE_NavigationContext).navigator;
+
+  useEffect(() => {
+    if (!shouldBlock) return;
+
+    const originalPush = navigator.push;
+    navigator.push = (...args) => {
+      if (window.confirm("Upload is in progress. Are you sure you want to leave this page?")) {
+        navigator.push = originalPush;
+        navigator.push(...args);
+      }
+    };
+
+    return () => {
+      navigator.push = originalPush;
+    };
+  }, [shouldBlock, navigator]);
+}
+
+
+
 
 export default function EditBook() {
   const { id } = useParams();
@@ -15,6 +40,9 @@ export default function EditBook() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const rightPanelRef = useRef();
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
 
   useEffect(() => {
     axios.get(`${BASE_URL}/api/auth/book/${id}`)
@@ -34,6 +62,27 @@ export default function EditBook() {
       })
       .catch(() => alert('Failed to load book data'));
   }, [id]);
+
+
+
+  useEffect(() => {
+  const handleBeforeUnload = (e) => {
+    if (uploading) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  };
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, [uploading]);
+
+useBlocker(uploading);
+
+
+
+
+
+
 
   const handleBookChange = (e) => {
     setBook({ ...book, [e.target.name]: e.target.value });
@@ -89,43 +138,60 @@ export default function EditBook() {
     setChapters(reordered);
   };
 
-  const handleUpdate = async () => {
-    try {
-      const formData = new FormData();
-      formData.append('name', book.name);
-      formData.append('subject', book.subject);
-      formData.append('tags', book.tags);
-      formData.append('contents', book.contents);
-      formData.append('chapters', JSON.stringify(
-        chapters.map((ch, idx) => ({
-          _id: ch._id,
-          name: ch.name,
-          description: ch.description,
-          price: ch.price,
-          order: idx,
-          fromPage: ch.fromPage,
-          toPage: ch.toPage,
-          subchapters: ch.subchapters,
-          uploadedFileName: ch.file ? ch.file.name : '',
-        }))
-      ));
-      if (coverFile) formData.append('cover', coverFile);
-      chapters.forEach(ch => {
-        if (ch.file) formData.append('chapterFiles', ch.file);
-      });
+const handleUpdate = async () => {
+  setUploading(true);
+  try {
+    const formData = new FormData();
+    formData.append('name', book.name);
+    formData.append('subject', book.subject);
+    formData.append('tags', book.tags);
+    formData.append('contents', book.contents);
+    formData.append('chapters', JSON.stringify(
+      chapters.map((ch, idx) => ({
+        _id: ch._id,
+        name: ch.name,
+        description: ch.description,
+        price: ch.price,
+        order: idx,
+        fromPage: ch.fromPage,
+        toPage: ch.toPage,
+        subchapters: ch.subchapters,
+        uploadedFileName: ch.file ? ch.file.name : '',
+      }))
+    ));
+    if (coverFile) formData.append('cover', coverFile);
+    chapters.forEach(ch => {
+      if (ch.file) formData.append('chapterFiles', ch.file);
+    });
 
-      await axios.put(`${BASE_URL}/api/auth/admin/book/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+    // await axios.put(`${BASE_URL}/api/auth/admin/book/${id}`, formData, {
+    //   headers: { 'Content-Type': 'multipart/form-data' }
+    // });
+    await axios.put(`${BASE_URL}/api/auth/admin/book/${id}`, formData, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+  onUploadProgress: (progressEvent) => {
+    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+    setUploadProgress(percentCompleted);
+  }
+});
 
-      setMessage('✅ Book updated successfully!');
-    } catch (err) {
-      console.error(err);
-      setMessage('❌ Update failed.');
-    }
-  };
+
+    setMessage('✅ Book updated successfully!');
+  } catch (err) {
+    console.error(err);
+    setMessage('❌ Update failed.');
+  } finally {
+  setUploading(false);
+  setTimeout(() => setUploadProgress(0), 2000); // optional: reset progress after 2s
+}
+};
+
 
   if (loading) return <p className="text-center mt-10">Loading...</p>;
+
+  
+
+
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] pt-20 pb-10 flex flex-col md:flex-row">
@@ -270,6 +336,17 @@ export default function EditBook() {
           </motion.div>
         )}
       </AnimatePresence>
+        {uploading && (
+  <div className="fixed bottom-0 left-0 w-full z-50">
+    <div className="h-1 bg-blue-200 w-full">
+      <div
+        className="h-1 bg-blue-600 transition-all duration-300"
+        style={{ width: `${uploadProgress}%` }}
+      ></div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
