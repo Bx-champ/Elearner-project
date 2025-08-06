@@ -145,11 +145,18 @@ const chapterPromises = chaptersMeta.map(async (meta, idx) => {
     const qpdfCommand = 'qpdf'; 
     console.log(`⚙️ Running QPDF to linearize "${meta.name}"...`);
 
-    await execPromise(`${qpdfCommand} --linearize "${tempInputPath}" "${tempOutputPath}"`);
+    // await execPromise(`${qpdfCommand} --linearize "${tempInputPath}" "${tempOutputPath}"`);
+    const { stdout, stderr } = await execPromise(`${qpdfCommand} --linearize "${tempInputPath}" "${tempOutputPath}"`);
+    console.log('QPDF STDOUT:', stdout);
+    console.error('QPDF STDERR:', stderr);
+
     console.log(`✅ QPDF linearized: ${tempOutputPath}`);
     const linearizedPdfBuffer = await fs.readFile(tempOutputPath);
 
     const chapterKey = `books/chapters/${name.replace(/\s+/g, '-')}/${meta.name.replace(/\s+/g, '-')}-${timestamp}.pdf`;
+    const { stdout: checkOut } = await execPromise(`${qpdfCommand} --check "${tempOutputPath}"`);
+    console.log(`✅ Linearization check before upload: ${checkOut}`);
+
     const chapterPdfUrl = await uploadFileToS3(linearizedPdfBuffer, chapterKey, 'application/pdf');
 
     return {
