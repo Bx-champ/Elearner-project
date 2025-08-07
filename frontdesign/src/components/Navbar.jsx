@@ -123,6 +123,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import logoImage from '../assets/logo3.png'; 
 
 export default function Navbar() {
   const location = useLocation();
@@ -165,7 +166,7 @@ export default function Navbar() {
           {/* Logo */}
           {/* <div className="text-2xl font-extrabold basis-1/4 md:basis-1/8 lg:basis-1/4">LOGO</div> */}
           <div className="basis-1/4 md:basis-1/8 lg:basis-1/4 flex items-center  h-8">
-  <a href="/"> <img src=".\src\assets\logo3.png" alt="Logo" className="h-16 w-auto object-contain"/>
+  <a href="/"> <img src={logoImage} alt="Logo" className="h-16 w-auto object-contain"/>
   </a>
 </div>
 
