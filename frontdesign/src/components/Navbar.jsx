@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import logoImage from '../assets/logo3.png';
+import logoImage from '../assets/logo3.png'; 
 
 export default function Navbar() {
   const location = useLocation();
