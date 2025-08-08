@@ -1162,6 +1162,138 @@ router.get('/admin/platform-stats', async (req, res) => {
 });
 
 
+// Add this new route to auth.js
+router.put('/user/change-password', verifyToken, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id; // From verifyToken middleware
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Both old and new passwords are required.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if the old password is correct
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect old password.' });
+    }
+
+    // Hash the new password and save it
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: '✅ Password updated successfully!' });
+
+  } catch (err) {
+    console.error('Password change error:', err);
+    res.status(500).json({ message: 'Server error while changing password.' });
+  }
+});
+
+
+// Add this new route to auth.js
+router.get('/user/pending-requests', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const pending = await ChapterAccessRequest.find({ userId, status: 'pending' })
+            .populate('bookId', 'name')
+            .lean();
+
+        const transformed = pending.map(req => ({
+            bookName: req.bookId.name,
+            chapters: req.chapters, // Chapter IDs, can be populated further if needed
+            status: req.status,
+            requestedAt: req.requestedAt
+        }));
+
+        res.json({ success: true, pending: transformed });
+
+    } catch (err) {
+        console.error('Error fetching user pending requests:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+// Add this new route to auth.js
+
+// GET /api/auth/user/last-activity
+// Replace the old /user/last-activity route in auth.js with this corrected version
+
+router.get('/user/last-activity', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const lastLog = await ActivityLog.findOne({ userId })
+            .sort({ lastActive: -1 })
+            .populate({
+                path: 'bookId',
+                select: 'name chapters'
+            })
+            .lean();
+
+        // ===== FIX IS HERE =====
+        // Check if a log AND its associated book exist before proceeding.
+        if (!lastLog || !lastLog.bookId) {
+            return res.json({ success: true, data: null });
+        }
+
+        // Find the specific chapter from the populated book
+        const chapter = lastLog.bookId.chapters.find(
+            ch => ch._id.toString() === lastLog.chapterId.toString()
+        );
+
+        res.json({
+            success: true,
+            data: {
+                bookId: lastLog.bookId._id,
+                bookName: lastLog.bookId.name,
+                chapterId: lastLog.chapterId,
+                chapterName: chapter ? chapter.name : 'Unknown Chapter',
+                lastActive: lastLog.lastActive
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching last activity:', err);
+        res.status(500).json({ message: 'Server error while fetching last activity' });
+    }
+});
+
+// Add this new route to your auth.js file
+
+router.put('/user/update-details', verifyToken, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const userId = req.user.id;
+
+        if (!name || name.trim().length < 2) {
+            return res.status(400).json({ message: 'Name must be at least 2 characters long.' });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { name: name.trim() },
+            { new: true } // This option returns the updated document
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        res.json({
+            message: '✅ Profile updated successfully!',
+            user: { name: updatedUser.name } // Send back the updated name
+        });
+
+    } catch (err) {
+        console.error('User update error:', err);
+        res.status(500).json({ message: 'Server error while updating profile.' });
+    }
+});
 
 
 module.exports = router;

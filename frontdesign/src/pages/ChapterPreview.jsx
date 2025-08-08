@@ -223,6 +223,66 @@ export default function ChapterPreview() {
     };
   }, [isLayoutReady, chapterData]);
 
+
+// =========================================================
+  // ===== ADD THIS NEW useEffect HOOK to ChapterPreview.jsx =====
+  // =========================================================
+  // --- Effect 4: User Activity Logging ---
+  useEffect(() => {
+    // Only run this logic if the PDF layout is ready and the user is logged in
+    if (!isLayoutReady || !user?.token) return;
+
+    // A simple way to keep track of the page currently in view
+    let lastViewedPage = 1;
+    const pageElements = containerRef.current?.querySelectorAll('.page-anchor');
+    const observers = [];
+
+    // Set up an observer for each page to see which one is on screen
+    pageElements?.forEach(pageElement => {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+          lastViewedPage = parseInt(entries[0].target.getAttribute('data-page-number'), 10);
+        }
+      }, { threshold: 0.5 }); // Triggers when 50% of the page is visible
+
+      observer.observe(pageElement);
+      observers.push(observer);
+    });
+
+    // This interval will send an "activity ping" to the backend every 15 seconds
+    const activityInterval = setInterval(() => {
+      console.log(`Logging activity for page: ${lastViewedPage}`); // For debugging
+      axios.post(
+        `${BASE_URL}/api/auth/activity-log`,
+        {
+          bookId,
+          chapterId,
+          pageNum: lastViewedPage,
+          duration: 15, // We log that the user was active for these 15 seconds
+        },
+        {
+          headers: { Authorization: `Bearer ${user.token}` },
+        }
+      ).catch(err => {
+        // We log errors silently so we don't interrupt the user
+        console.error("Activity log ping failed:", err);
+      });
+    }, 15000); // 15000 milliseconds = 15 seconds
+
+    // This is a crucial cleanup function. It stops the interval and observers
+    // when the user navigates away from the page to prevent memory leaks.
+    return () => {
+      clearInterval(activityInterval);
+      observers.forEach(obs => obs.disconnect());
+    };
+
+  }, [isLayoutReady, user, bookId, chapterId]); // Dependencies for this effect
+
+
+
+
+
+
   // --- Helper function to scroll to a specific page ---
   const scrollToPage = (pageNum) => {
     const target = containerRef.current?.querySelector(`[data-page-number="${pageNum}"]`);
