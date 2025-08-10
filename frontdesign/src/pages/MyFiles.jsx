@@ -80,7 +80,7 @@ export default function MyFiles() {
 
   return (
     <div className="pt-24 px-4 min-h-screen bg-[#f4f2ec]">
-      <h2 className="text-2xl font-bold text-[#16355a] mb-6">📚 My Assigned Books</h2>
+      {/* <h2 className="text-2xl font-bold text-[#16355a] mb-6">📚 My Assigned Books</h2> */}
 
       {books.length === 0 ? (
         <p className="text-gray-500">No books assigned yet.</p>

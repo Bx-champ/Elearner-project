@@ -1,4 +1,6 @@
-import { useContext } from 'react';
+import { useContext , useEffect } from 'react';
+import axios from 'axios';
+import { BASE_URL } from './config'; 
 import { useLocation } from 'react-router-dom'; // 🔸 import this
 import './App.css';
 import Navbar from './components/Navbar';
@@ -35,6 +37,25 @@ import AdminStats from './pages/AdminStats';
 function App() {
   const { role, user, loading } = useContext(AuthContext);
   const location = useLocation(); // 🔸 Get current path
+
+   const token = user?.token;
+
+  // This effect handles logging the user out on the backend when they close the browser/tab
+   useEffect(() => {
+    const handleTabClose = () => {
+      if (token) {
+        // --- FIX: Correctly format the data for sendBeacon ---
+        const data = new Blob([JSON.stringify({ token: token })], { type: 'application/json' });
+        navigator.sendBeacon(`${BASE_URL}/api/auth/logout`, data);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleTabClose);
+    };
+  }, [token]);
 
   // Show default Navbar on public pages, even if role exists
   const isPublicPage = ["/", "/signin", "/signup", "/about", "/contact", "/register/vendor"].includes(location.pathname);

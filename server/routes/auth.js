@@ -78,74 +78,177 @@ const createNotification = async ({ userId, message, type, forAdmin = false }, r
 };
 
 // ==================== AUTH ====================
+// router.post('/signin', async (req, res) => {
+//   const { email, password } = req.body;
+//   try {
+//     let user, role;
+//     user = await Admin.findOne({ email });
+//     if (user) role = 'admin';
+//     if (!user) {
+//       user = await User.findOne({ email });
+//       if (user) role = 'user';
+//     }
+//     if (!user) {
+//       user = await Vendor.findOne({ email });
+//       if (user) role = 'vendor';
+//     }
+//     if (!user) return res.status(400).json({ message: 'User not found' });
+
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+//     const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+//     if (role === 'user') {
+//       await User.findByIdAndUpdate(user._id, { currentToken: token });
+//     } else if (role === 'admin') {
+//       // Assuming Admin model has currentToken field
+//       await Admin.findByIdAndUpdate(user._id, { currentToken: token });
+//     } else if (role === 'vendor') {
+//       // Assuming Vendor model has currentToken field
+//       await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
+//     }
+
+//     const userInfo = { _id: user._id, name: user.name, email: user.email };
+//     res.json({ token, role, user: userInfo, message: `${role} login success` });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+// Replace the existing /signin route in your auth.js file with this one
+
+// Replace the existing /signin route in your auth.js file with this one
+
+
+
+
+
+
+// router.post('/signin', async (req, res) => {
+//   const { email, password } = req.body;
+//   try {
+//     let user, role;
+//     user = await Admin.findOne({ email });
+//     if (user) role = 'admin';
+//     if (!user) {
+//       user = await User.findOne({ email });
+//       if (user) role = 'user';
+//     }
+//     if (!user) {
+//       user = await Vendor.findOne({ email });
+//       if (user) role = 'vendor';
+//     }
+//     if (!user) return res.status(400).json({ message: 'User not found' });
+
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+//     const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+//     // This part remains the same, saving the token to the database
+//     if (role === 'user') {
+//       await User.findByIdAndUpdate(user._id, { currentToken: token });
+//     } else if (role === 'admin') {
+//       await Admin.findByIdAndUpdate(user._id, { currentToken: token });
+//     } else if (role === 'vendor') {
+//       await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
+//     }
+
+//     // ===== FIX 1: Add the token directly into the user object =====
+//     const userInfo = { _id: user._id, name: user.name, email: user.email, token };
+//     
+//     // ===== FIX 2: Send a simpler response with the token inside the user object =====
+//     res.json({ role, user: userInfo, message: `${role} login success` });
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+// router.post('/signup', async (req, res) => {
+//   const { name, email, password } = req.body;
+//   try {
+//     if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor cannot be user' });
+//     if (await User.findOne({ email })) return res.status(400).json({ message: 'User already exists' });
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const newUser = new User({ name, email, password: hashedPassword });
+//     await newUser.save();
+//     res.status(201).json({ message: 'Registration successful' });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+// router.post('/vendor/signup', async (req, res) => {
+//   const { instituteName, representativeName, email, phone, password } = req.body;
+//   try {
+//     if (await User.findOne({ email })) return res.status(400).json({ message: 'user cannot be vendor' });
+//     if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor already exists' });
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const vendor = new Vendor({ instituteName, representativeName, email, phone, password: hashedPassword });
+//     await vendor.save();
+//     res.status(201).json({ message: 'Vendor registered successfully' });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+
+// Replace the existing /signin route in your auth.js file with this one
+
 router.post('/signin', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    let user, role;
-    user = await Admin.findOne({ email });
-    if (user) role = 'admin';
-    if (!user) {
-      user = await User.findOne({ email });
-      if (user) role = 'user';
-    }
-    if (!user) {
-      user = await Vendor.findOne({ email });
-      if (user) role = 'vendor';
-    }
-    if (!user) return res.status(400).json({ message: 'User not found' });
+  const { email, password } = req.body;
+  try {
+    let user, role;
+    user = await Admin.findOne({ email });
+    if (user) role = 'admin';
+    if (!user) {
+      user = await User.findOne({ email });
+      if (user) role = 'user';
+    }
+    if (!user) {
+      user = await Vendor.findOne({ email });
+      if (user) role = 'vendor';
+    }
+    if (!user) return res.status(400).json({ message: 'User not found' });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    if (role === 'user') {
-      await User.findByIdAndUpdate(user._id, { currentToken: token });
-    } else if (role === 'admin') {
-      // Assuming Admin model has currentToken field
-      await Admin.findByIdAndUpdate(user._id, { currentToken: token });
-    } else if (role === 'vendor') {
-      // Assuming Vendor model has currentToken field
-      await Vendor.findByIdAndUpdate(user._id, { currentToken: token });
-    }
+    // This part remains the same, saving the token to the database
+    if (role === 'user') {
+      await User.findByIdAndUpdate(user._id, { currentToken: token , isOnline: true  });
+    } else if (role === 'admin') {
+      await Admin.findByIdAndUpdate(user._id, { currentToken: token , isOnline: true });
+    } else if (role === 'vendor') {
+      await Vendor.findByIdAndUpdate(user._id, { currentToken: token , isOnline: true });
+    }
 
-    const userInfo = { _id: user._id, name: user.name, email: user.email };
-    res.json({ token, role, user: userInfo, message: `${role} login success` });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
+    // ===== FIX 1: Add the token directly into the user object =====
+    const userInfo = { _id: user._id, name: user.name, email: user.email, token };
+    
+    // ===== FIX 2: Send a simpler response with the token inside the user object =====
+    res.json({ role, user: userInfo, message: `${role} login success` });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-router.post('/signup', async (req, res) => {
-  const { name, email, password } = req.body;
-  try {
-    if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor cannot be user' });
-    if (await User.findOne({ email })) return res.status(400).json({ message: 'User already exists' });
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, email, password: hashedPassword });
-    await newUser.save();
-    res.status(201).json({ message: 'Registration successful' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
-router.post('/vendor/signup', async (req, res) => {
-  const { instituteName, representativeName, email, phone, password } = req.body;
-  try {
-    if (await User.findOne({ email })) return res.status(400).json({ message: 'user cannot be vendor' });
-    if (await Vendor.findOne({ email })) return res.status(400).json({ message: 'Vendor already exists' });
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const vendor = new Vendor({ instituteName, representativeName, email, phone, password: hashedPassword });
-    await vendor.save();
-    res.status(201).json({ message: 'Vendor registered successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+
+
 
 // ==================== BOOK ROUTES ====================
 router.get('/books', async (req, res) => {
@@ -529,60 +632,87 @@ router.put('/admin/access-request-status', async (req, res) => {
   }
 });
 
-router.get('/user/chapter-access/all', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No token' });
+// router.get('/user/chapter-access/all', async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'No token' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     const userId = decoded.id;
 
-    const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
-      .populate({
-  path: 'bookId',
-  select: 'name coverUrl chapters'
-})
+//     const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
+//       .populate({
+//   path: 'bookId',
+//   select: 'name coverUrl chapters'
+// })
 
-      .lean();
+//       .lean();
 
-    const bookMap = {};
+//     const bookMap = {};
 
-    approvedRequests.forEach(req => {
-      const book = req.bookId;
-      if (!book || !book.chapters) return;
+//     approvedRequests.forEach(req => {
+//       const book = req.bookId;
+//       if (!book || !book.chapters) return;
 
-      if (!bookMap[book._id]) {
-        bookMap[book._id] = {
-          _id: book._id,
-          name: book.name,
-          coverUrl: book.coverUrl,
-          chapters: []
-        };
-      }
+//       if (!bookMap[book._id]) {
+//         bookMap[book._id] = {
+//           _id: book._id,
+//           name: book.name,
+//           coverUrl: book.coverUrl,
+//           chapters: []
+//         };
+//       }
 
-      req.chapters.forEach(chId => {
-        const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
-        if (chapter) {
-          bookMap[book._id].chapters.push({
-            _id: chapter._id,
-            name: chapter.name,
-            description: chapter.description,
-            fromPage: chapter.fromPage,
-            toPage: chapter.toPage,
-            price: chapter.price,
-            subchapters: chapter.subchapters || [],
-          });
-        }
-      });
-    });
+//       req.chapters.forEach(chId => {
+//         const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
+//         if (chapter) {
+//           bookMap[book._id].chapters.push({
+//             _id: chapter._id,
+//             name: chapter.name,
+//             description: chapter.description,
+//             fromPage: chapter.fromPage,
+//             toPage: chapter.toPage,
+//             price: chapter.price,
+//             subchapters: chapter.subchapters || [],
+//           });
+//         }
+//       });
+//     });
 
-    const result = Object.values(bookMap);
-    res.json({ success: true, books: result });
-  } catch (err) {
-    console.error('❌ Error in /user/chapter-access/all:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+//     const result = Object.values(bookMap);
+//     res.json({ success: true, books: result });
+//   } catch (err) {
+//     console.error('❌ Error in /user/chapter-access/all:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+router.get('/user/chapter-access/all', verifyToken(), async (req, res) => {
+  try {
+    const userId = req.user.id; // Now correctly get userId from middleware
+    const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
+      .populate({ path: 'bookId', select: 'name coverUrl chapters' }).lean();
+
+    const bookMap = {};
+    approvedRequests.forEach(req => {
+      const book = req.bookId;
+      if (!book || !book.chapters) return;
+      if (!bookMap[book._id]) {
+        bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
+      }
+      req.chapters.forEach(chId => {
+        const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
+        if (chapter) { bookMap[book._id].chapters.push(chapter); }
+      });
+    });
+
+    res.json({ success: true, books: Object.values(bookMap) });
+  } catch (err) {
+    console.error('❌ Error in /user/chapter-access/all:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
+
 
 router.get('/user/chapter-access/:bookId', async (req, res) => {
   try {
@@ -911,57 +1041,84 @@ router.get('/admin/student-activity-report', async (req, res) => {
 
 
 // GET: Assigned books and chapters for a user///////////////////////////////////
-router.get('/user/assigned-books', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No token' });
+// router.get('/user/assigned-books', async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'No token' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     const userId = decoded.id;
 
-    const assignments = await ChapterAssignment.find({ userId }).populate({
-      path: 'bookId',
-      select: 'name coverUrl chapters',
-    }).lean(); // Use lean to simplify processing
+//     const assignments = await ChapterAssignment.find({ userId }).populate({
+//       path: 'bookId',
+//       select: 'name coverUrl chapters',
+//     }).lean(); // Use lean to simplify processing
 
-    const bookMap = {};
+//     const bookMap = {};
 
-    for (let assign of assignments) {
-      const book = assign.bookId;
-      if (!book || !book.chapters) continue;
+//     for (let assign of assignments) {
+//       const book = assign.bookId;
+//       if (!book || !book.chapters) continue;
 
-      if (!bookMap[book._id]) {
-        bookMap[book._id] = {
-          _id: book._id,
-          name: book.name,
-          coverUrl: book.coverUrl,
-          chapters: []
-        };
-      }
+//       if (!bookMap[book._id]) {
+//         bookMap[book._id] = {
+//           _id: book._id,
+//           name: book.name,
+//           coverUrl: book.coverUrl,
+//           chapters: []
+//         };
+//       }
 
-      const chapter = book.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
-      if (chapter) {
-        bookMap[book._id].chapters.push({
-          _id: chapter._id,
-          name: chapter.name,
-          description: chapter.description,
-          fromPage: chapter.fromPage,
-          toPage: chapter.toPage,
-          price: chapter.price,
-          subchapters: chapter.subchapters || [],
-          expiresAt: assign.expiresAt // ✅ Include this
-        });
-      }
+//       const chapter = book.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
+//       if (chapter) {
+//         bookMap[book._id].chapters.push({
+//           _id: chapter._id,
+//           name: chapter.name,
+//           description: chapter.description,
+//           fromPage: chapter.fromPage,
+//           toPage: chapter.toPage,
+//           price: chapter.price,
+//           subchapters: chapter.subchapters || [],
+//           expiresAt: assign.expiresAt // ✅ Include this
+//         });
+//       }
+//     }
+
+//     const result = Object.values(bookMap);
+//     res.json({ success: true, books: result });
+//   } catch (err) {
+//     console.error('Assigned books error:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+router.get('/user/assigned-books', verifyToken(), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const assignments = await ChapterAssignment.find({ userId }).populate({
+            path: 'bookId',
+            select: 'name coverUrl chapters',
+        }).lean();
+
+        const bookMap = {};
+        for (let assign of assignments) {
+            const book = assign.bookId;
+            if (!book || !book.chapters) continue;
+            if (!bookMap[book._id]) {
+                bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
+            }
+            const chapter = book.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
+            if (chapter) {
+                bookMap[book._id].chapters.push({ ...chapter, expiresAt: assign.expiresAt });
+            }
+        }
+        res.json({ success: true, books: Object.values(bookMap) });
+    } catch (err) {
+        console.error('Assigned books error:', err);
+        res.status(500).json({ message: 'Server error' });
     }
-
-    const result = Object.values(bookMap);
-    res.json({ success: true, books: result });
-  } catch (err) {
-    console.error('Assigned books error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
 });
-
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //DELETE: Admin revokes expiry-based chapter access
@@ -1084,29 +1241,96 @@ router.get('/user/activity-summary', async (req, res) => {
   }
 });
 
+// router.post('/logout', async (req, res) => {
+//   const token = req.headers.authorization?.split(' ')[1];
+//   if (!token) return res.status(400).json({ message: 'No token' });
+
+//   try {
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     let model;
+
+//     if (decoded.role === 'user') model = User;
+//     else if (decoded.role === 'admin') model = Admin;
+//     else if (decoded.role === 'vendor') model = Vendor;
+//     else return res.status(400).json({ message: 'Invalid role' });
+
+//     await model.findByIdAndUpdate(decoded.id, { currentToken: null });
+//     res.json({ message: '✅ Logged out successfully' });
+//   } catch (err) {
+//     console.error('Logout error:', err);
+//     res.status(500).json({ message: 'Server error during logout' });
+//   }
+// });
+
+// In routes/auth.js
+
+// router.post('/logout', verifyToken(), async (req, res) => { // Added verifyToken
+//     try {
+//         const { id, role } = req.user; // Get user info from token
+//         let model;
+
+//         if (role === 'user') model = User;
+//         else if (role === 'admin') model = Admin;
+//         else if (role === 'vendor') model = Vendor;
+//         else return res.status(400).json({ message: 'Invalid role' });
+
+//         // Set user to offline and clear their token
+//         await model.findByIdAndUpdate(id, { currentToken: null, isOnline: false });
+        
+//         res.json({ message: '✅ Logged out successfully' });
+//     } catch (err) {
+//         console.error('Logout error:', err);
+//         res.status(500).json({ message: 'Server error during logout' });
+//     }
+// });
+
+
+// Replace your existing /logout route in auth.js with this one
+
 router.post('/logout', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(400).json({ message: 'No token' });
+    try {
+        let token;
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    let model;
+        // Check for token in header (for button clicks)
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.split(' ')[1];
+        } 
+        // If not in header, check body (for tab close / sendBeacon)
+        else if (req.body && req.body.token) {
+            token = req.body.token;
+        }
 
-    if (decoded.role === 'user') model = User;
-    else if (decoded.role === 'admin') model = Admin;
-    else if (decoded.role === 'vendor') model = Vendor;
-    else return res.status(400).json({ message: 'Invalid role' });
+        if (!token) {
+            return res.status(400).json({ message: 'No token provided for logout.' });
+        }
 
-    await model.findByIdAndUpdate(decoded.id, { currentToken: null });
-    res.json({ message: '✅ Logged out successfully' });
-  } catch (err) {
-    console.error('Logout error:', err);
-    res.status(500).json({ message: 'Server error during logout' });
-  }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { id, role } = decoded;
+        let model;
+
+        if (role === 'user') model = User;
+        else if (role === 'admin') model = Admin;
+        else if (role === 'vendor') model = Vendor;
+        else return res.status(400).json({ message: 'Invalid role' });
+
+        // Find the user and check if the token matches before logging out
+        const user = await model.findById(id);
+        if (user && user.currentToken === token) {
+            await model.findByIdAndUpdate(id, { currentToken: null, isOnline: false });
+        }
+        
+        res.status(200).json({ message: 'Logged out successfully' });
+
+    } catch (err) {
+        // Suppress benign errors like "jwt expired" on logout
+        if (err.name !== 'TokenExpiredError' && err.name !== 'JsonWebTokenError') {
+             console.error('Logout error:', err);
+        }
+        // Always send a success response to the frontend on logout
+        res.status(200).json({ message: 'Logout processed' });
+    }
 });
-
-
-
 
 
 router.get('/admin/user-stats', async (req, res) => {
@@ -1163,56 +1387,101 @@ router.get('/admin/platform-stats', async (req, res) => {
 
 
 // Add this new route to auth.js
-router.put('/user/change-password', verifyToken, async (req, res) => {
-  try {
-    const { oldPassword, newPassword } = req.body;
-    const userId = req.user.id; // From verifyToken middleware
+// router.put('/user/change-password', verifyToken, async (req, res) => {
+//   try {
+//     const { oldPassword, newPassword } = req.body;
+//     const userId = req.user.id; // From verifyToken middleware
 
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ message: 'Both old and new passwords are required.' });
+//     if (!oldPassword || !newPassword) {
+//       return res.status(400).json({ message: 'Both old and new passwords are required.' });
+//     }
+
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found.' });
+//     }
+
+//     // Check if the old password is correct
+//     const isMatch = await bcrypt.compare(oldPassword, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({ message: 'Incorrect old password.' });
+//     }
+
+//     // Hash the new password and save it
+//     user.password = await bcrypt.hash(newPassword, 10);
+//     await user.save();
+
+//     res.json({ message: '✅ Password updated successfully!' });
+
+//   } catch (err) {
+//     console.error('Password change error:', err);
+//     res.status(500).json({ message: 'Server error while changing password.' });
+//   }
+// });
+
+
+router.put('/user/change-password', verifyToken(), async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const userId = req.user.id;
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ message: 'Both old and new passwords are required.' });
+        }
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Incorrect old password.' });
+        }
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+        res.json({ message: '✅ Password updated successfully!' });
+    } catch (err) {
+        console.error('Password change error:', err);
+        res.status(500).json({ message: 'Server error while changing password.' });
     }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-
-    // Check if the old password is correct
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Incorrect old password.' });
-    }
-
-    // Hash the new password and save it
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    res.json({ message: '✅ Password updated successfully!' });
-
-  } catch (err) {
-    console.error('Password change error:', err);
-    res.status(500).json({ message: 'Server error while changing password.' });
-  }
 });
 
 
+
 // Add this new route to auth.js
-router.get('/user/pending-requests', verifyToken, async (req, res) => {
+// router.get('/user/pending-requests', verifyToken, async (req, res) => {
+//     try {
+//         const userId = req.user.id;
+//         const pending = await ChapterAccessRequest.find({ userId, status: 'pending' })
+//             .populate('bookId', 'name')
+//             .lean();
+
+//         const transformed = pending.map(req => ({
+//             bookName: req.bookId.name,
+//             chapters: req.chapters, // Chapter IDs, can be populated further if needed
+//             status: req.status,
+//             requestedAt: req.requestedAt
+//         }));
+
+//         res.json({ success: true, pending: transformed });
+
+//     } catch (err) {
+//         console.error('Error fetching user pending requests:', err);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// });
+
+
+router.get('/user/pending-requests', verifyToken(), async (req, res) => {
     try {
         const userId = req.user.id;
         const pending = await ChapterAccessRequest.find({ userId, status: 'pending' })
-            .populate('bookId', 'name')
-            .lean();
-
+            .populate('bookId', 'name').lean();
         const transformed = pending.map(req => ({
-            bookName: req.bookId.name,
-            chapters: req.chapters, // Chapter IDs, can be populated further if needed
+            bookName: req.bookId ? req.bookId.name : 'Unknown Book',
+            chapters: req.chapters,
             status: req.status,
             requestedAt: req.requestedAt
         }));
-
         res.json({ success: true, pending: transformed });
-
     } catch (err) {
         console.error('Error fetching user pending requests:', err);
         res.status(500).json({ message: 'Server error' });
@@ -1225,28 +1494,59 @@ router.get('/user/pending-requests', verifyToken, async (req, res) => {
 // GET /api/auth/user/last-activity
 // Replace the old /user/last-activity route in auth.js with this corrected version
 
-router.get('/user/last-activity', verifyToken, async (req, res) => {
+// router.get('/user/last-activity', verifyToken, async (req, res) => {
+//     try {
+//         const userId = req.user.id;
+//         const lastLog = await ActivityLog.findOne({ userId })
+//             .sort({ lastActive: -1 })
+//             .populate({
+//                 path: 'bookId',
+//                 select: 'name chapters'
+//             })
+//             .lean();
+
+//         // ===== FIX IS HERE =====
+//         // Check if a log AND its associated book exist before proceeding.
+//         if (!lastLog || !lastLog.bookId) {
+//             return res.json({ success: true, data: null });
+//         }
+
+//         // Find the specific chapter from the populated book
+//         const chapter = lastLog.bookId.chapters.find(
+//             ch => ch._id.toString() === lastLog.chapterId.toString()
+//         );
+
+//         res.json({
+//             success: true,
+//             data: {
+//                 bookId: lastLog.bookId._id,
+//                 bookName: lastLog.bookId.name,
+//                 chapterId: lastLog.chapterId,
+//                 chapterName: chapter ? chapter.name : 'Unknown Chapter',
+//                 lastActive: lastLog.lastActive
+//             }
+//         });
+//     } catch (err) {
+//         console.error('Error fetching last activity:', err);
+//         res.status(500).json({ message: 'Server error while fetching last activity' });
+//     }
+// });
+
+// Add this new route to your auth.js file
+
+
+router.get('/user/last-activity', verifyToken(), async (req, res) => {
     try {
         const userId = req.user.id;
         const lastLog = await ActivityLog.findOne({ userId })
             .sort({ lastActive: -1 })
-            .populate({
-                path: 'bookId',
-                select: 'name chapters'
-            })
+            .populate({ path: 'bookId', select: 'name chapters' })
             .lean();
 
-        // ===== FIX IS HERE =====
-        // Check if a log AND its associated book exist before proceeding.
         if (!lastLog || !lastLog.bookId) {
             return res.json({ success: true, data: null });
         }
-
-        // Find the specific chapter from the populated book
-        const chapter = lastLog.bookId.chapters.find(
-            ch => ch._id.toString() === lastLog.chapterId.toString()
-        );
-
+        const chapter = lastLog.bookId.chapters.find(ch => ch._id.toString() === lastLog.chapterId.toString());
         res.json({
             success: true,
             data: {
@@ -1263,37 +1563,199 @@ router.get('/user/last-activity', verifyToken, async (req, res) => {
     }
 });
 
-// Add this new route to your auth.js file
+// router.put('/user/update-details', verifyToken, async (req, res) => {
+//     try {
+//         const { name } = req.body;
+//         const userId = req.user.id;
 
-router.put('/user/update-details', verifyToken, async (req, res) => {
+//         if (!name || name.trim().length < 2) {
+//             return res.status(400).json({ message: 'Name must be at least 2 characters long.' });
+//         }
+
+//         const updatedUser = await User.findByIdAndUpdate(
+//             userId,
+//             { name: name.trim() },
+//             { new: true } // This option returns the updated document
+//         );
+
+//         if (!updatedUser) {
+//             return res.status(404).json({ message: 'User not found.' });
+//         }
+
+//         res.json({
+//             message: '✅ Profile updated successfully!',
+//             user: { name: updatedUser.name } // Send back the updated name
+//         });
+
+//     } catch (err) {
+//         console.error('User update error:', err);
+//         res.status(500).json({ message: 'Server error while updating profile.' });
+//     }
+// });
+
+
+router.put('/user/update-details', verifyToken(), async (req, res) => {
     try {
         const { name } = req.body;
         const userId = req.user.id;
-
         if (!name || name.trim().length < 2) {
             return res.status(400).json({ message: 'Name must be at least 2 characters long.' });
         }
-
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            { name: name.trim() },
-            { new: true } // This option returns the updated document
-        );
-
+        const updatedUser = await User.findByIdAndUpdate(userId, { name: name.trim() }, { new: true });
         if (!updatedUser) {
             return res.status(404).json({ message: 'User not found.' });
         }
-
         res.json({
             message: '✅ Profile updated successfully!',
-            user: { name: updatedUser.name } // Send back the updated name
+            user: { name: updatedUser.name }
         });
-
     } catch (err) {
         console.error('User update error:', err);
         res.status(500).json({ message: 'Server error while updating profile.' });
     }
 });
 
+
+
+
+
+// Add this new route to your auth.js file
+
+// router.get('/admin/user-dashboard-data', verifyToken(['admin']), async (req, res) => {
+//     try {
+//         const usersWithStats = await User.aggregate([
+//             // Stage 1: Lookup approved chapter requests
+//             {
+//                 $lookup: {
+//                     from: 'chapteraccessrequests',
+//                     localField: '_id',
+//                     foreignField: 'userId',
+//                     as: 'approvedAccess'
+//                 }
+//             },
+//             // Stage 2: Lookup assigned chapters
+//             {
+//                 $lookup: {
+//                     from: 'chapterassignments',
+//                     localField: '_id',
+//                     foreignField: 'userId',
+//                     as: 'assignedAccess'
+//                 }
+//             },
+//             // Stage 3: Reshape the data
+//             {
+//                 $project: {
+//                     name: 1,
+//                     email: 1,
+//                     isOnline: { $ifNull: ["$isOnline", false] }, // Assumes isOnline is in User model
+                    
+//                     // Filter for only 'approved' requests
+//                     approvedChapters: {
+//                         $filter: {
+//                             input: '$approvedAccess',
+//                             as: 'req',
+//                             cond: { $eq: ['$$req.status', 'approved'] }
+//                         }
+//                     },
+//                     assignedChapters: '$assignedAccess'
+//                 }
+//             },
+//             // Stage 4: Calculate counts
+//             {
+//                 $project: {
+//                     name: 1,
+//                     email: 1,
+//                     isOnline: 1,
+//                     approvedChaptersCount: { $sum: { $map: { input: "$approvedChapters", as: "ac", in: { $size: "$$ac.chapters" } } } },
+//                     approvedBooksCount: { $size: { $setUnion: "$approvedChapters.bookId" } }, // Count unique book IDs
+//                     assignedChaptersCount: { $size: "$assignedChapters" },
+//                     assignedBooksCount: { $size: { $setUnion: "$assignedChapters.bookId" } } // Count unique book IDs
+//                 }
+//             }
+//         ]);
+
+//         res.json({ success: true, users: usersWithStats });
+
+//     } catch (err) {
+//         console.error('Failed to generate user dashboard data:', err);
+//         res.status(500).json({ success: false, message: 'Server error' });
+//     }
+// });
+
+
+
+// Add this new route to your auth.js file
+
+router.get('/admin/user-management-data', verifyToken(['admin']), async (req, res) => {
+    try {
+        const usersWithStats = await User.aggregate([
+            // Stage 1: Join with ChapterAccessRequests to find approved content
+            {
+                $lookup: {
+                    from: 'chapteraccessrequests',
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'accessRequests'
+                }
+            },
+            // Stage 2: Join with ChapterAssignments to find timed content
+            {
+                $lookup: {
+                    from: 'chapterassignments',
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'assignments'
+                }
+            },
+            // Stage 3: Join with ActivityLog to find the last active time
+            {
+                $lookup: {
+                    from: 'activitylogs',
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'activity'
+                }
+            },
+            // Stage 4: Reshape the data and calculate counts
+            {
+                $project: {
+                    name: 1,
+                    email: 1,
+                    isOnline: { $ifNull: ["$isOnline", false] }, // Defaults isOnline to false if not present
+                    lastActive: { $max: "$activity.lastActive" }, // Get the most recent activity date
+
+                    // Filter for only 'approved' requests
+                    approvedItems: {
+                        $filter: {
+                            input: '$accessRequests',
+                            as: 'req',
+                            cond: { $eq: ['$$req.status', 'approved'] }
+                        }
+                    },
+                    assignedItems: '$assignments'
+                }
+            },
+            // Stage 5: Finalize the counts
+            {
+                $project: {
+                    name: 1,
+                    email: 1,
+                    isOnline: 1,
+                    lastActive: 1,
+                    approvedChaptersCount: { $sum: { $map: { input: "$approvedItems", as: "item", in: { $size: "$$item.chapters" } } } },
+                    approvedBooksCount: { $size: { $setUnion: "$approvedItems.bookId" } }, // Count unique books
+                    assignedChaptersCount: { $size: "$assignedItems" },
+                    assignedBooksCount: { $size: { $setUnion: "$assignedItems.bookId" } } // Count unique books
+                }
+            }
+        ]);
+
+        res.json({ success: true, users: usersWithStats });
+
+    } catch (err) {
+        console.error('Failed to generate user management data:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
 
 module.exports = router;
