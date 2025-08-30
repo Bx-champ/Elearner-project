@@ -147,7 +147,10 @@ app.get('/', (req, res) => {
 // ✅ --- THIS IS THE FIX ---
 // Configure CORS to explicitly allow your frontend's origin
 app.use(cors({
-    origin: FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      // origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], 
+      // origin: 'http://10.126.148.121:5173',
+    // methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
 

@@ -10,10 +10,28 @@ const userSchema = new mongoose.Schema({
 },
  currentToken: { type: String, default: null },
  isOnline: { type: Boolean, default: false },
+
+ isVerified: { 
+        type: Boolean, 
+        default: false 
+    },
+    emailVerificationToken: { 
+        type: String 
+    },
+    emailVerificationExpires: { type: Date  },
 //  lastSeenAt: { type: Date, default: null },///////////
  },
  { timestamps: true }
 
 );
+
+userSchema.index(
+  { emailVerificationExpires: 1 }, 
+  { 
+    expireAfterSeconds: 0,
+    partialFilterExpression: { isVerified: false } 
+  }
+);
+
 
 module.exports = mongoose.model('User', userSchema);

@@ -33,6 +33,7 @@ import AdminNotifications from './pages/AdminNotifications';
 import UserProfile from './pages/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminStats from './pages/AdminStats';
+import EmailVerification from './pages/EmailVerification';
 
 function App() {
   const { role, user, loading } = useContext(AuthContext);
@@ -112,6 +113,7 @@ function App() {
         <Route path="/admin/notifications" element={<ProtectedRoute><AdminNotifications /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
         <Route path="/admin/stats" element={<ProtectedRoute><AdminStats /></ProtectedRoute>} />
+         <Route path="/verify-email/:token" element={<EmailVerification />} />
       </Routes>
     </div>
   );
