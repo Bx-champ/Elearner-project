@@ -1,10 +1,11 @@
 
-import '../pdfWorker'; // Ensures the PDF worker is bundled
+// import '../pdfWorker'; // Ensures the PDF worker is bundled
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import * as pdfjsLib from 'pdfjs-dist';
 import { BASE_URL } from '../config';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 // Helper to get user info safely from localStorage
 const getUserInfo = () => {
