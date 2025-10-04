@@ -135,7 +135,7 @@ export default function UserBookChapters() {
         <h2 className="text-xl sm:text-2xl font-bold text-[#16355a] mt-3 mb-1">{book.name}</h2>
         <p className="text-sm text-gray-600 mb-1">{book.subject}</p>
         <p className="text-sm text-gray-500 mb-1">Tags: {book.tags || 'N/A'}</p>
-        <p className="text-sm text-gray-400 mb-2">Total Price: ₹{book.price}</p>
+        {/* <p className="text-sm text-gray-400 mb-2">Total Price: ₹{book.price}</p> */}
         <p className="text-xs text-gray-500">{book.contents}</p>
 
         <Link
