@@ -35,6 +35,13 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminStats from './pages/AdminStats';
 import EmailVerification from './pages/EmailVerification';
 
+// ✅ Add these imports for toast notifications
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+
+
+
 function App() {
   const { role, user, loading } = useContext(AuthContext);
   const location = useLocation(); // 🔸 Get current path
@@ -115,6 +122,10 @@ function App() {
         <Route path="/admin/stats" element={<ProtectedRoute><AdminStats /></ProtectedRoute>} />
          <Route path="/verify-email/:token" element={<EmailVerification />} />
       </Routes>
+
+
+          {/* ✅ Add ToastContainer here — at the end of return */}
+      <ToastContainer position="top-center" autoClose={3000} />
     </div>
   );
 }

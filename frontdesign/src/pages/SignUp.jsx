@@ -228,22 +228,164 @@
 // }
 
 
+
+
+
+
+
+
+
+// import React, { useState } from 'react';
+// import { Link } from 'react-router-dom';
+// import axios from 'axios';
+// import { BASE_URL } from '../config';
+// import { User, Mail, Lock, Eye, EyeOff, PartyPopper } from 'lucide-react';
+
+// export default function SignUp() {
+//   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+//   const [error, setError] = useState('');
+//   const [isSubmitted, setIsSubmitted] = useState(false);
+//   const [loading, setLoading] = useState(false);
+//   const [showPassword, setShowPassword] = useState(false);
+
+//   const handleChange = (e) => {
+//     setFormData({ ...formData, [e.target.name]: e.target.value });
+//   };
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setError('');
+//     setLoading(true);
+//     try {
+//       await axios.post(`${BASE_URL}/api/auth/signup`, formData);
+//       setIsSubmitted(true);
+//     } catch (err) {
+//       setError(err.response?.data?.message || 'Registration failed. Please try again.');
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+  
+//   // A more visually appealing success message screen
+//   if (isSubmitted) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+//         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center animate-fade-in">
+//           <PartyPopper className="mx-auto h-16 w-16 text-green-500" strokeWidth={1.5} />
+//           <h2 className="mt-6 text-2xl font-bold text-gray-800">Registration Successful!</h2>
+//           <p className="mt-4 text-gray-600">
+//             We've sent a verification link to <strong className="text-gray-900">{formData.email}</strong>. Please check your inbox to complete your registration.
+//           </p>
+//           <Link to="/signin" className="mt-8 inline-block bg-blue-600 text-white font-semibold py-2 px-8 rounded-lg hover:bg-blue-700 transition-colors">
+//             Go to Sign In
+//           </Link>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+//       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 space-y-6">
+//         <div className="text-center">
+//           <h2 className="text-3xl font-bold text-gray-800">Create Your Account</h2>
+//           <p className="mt-2 text-gray-500">Get started with our service today!</p>
+//         </div>
+        
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           {/* Name Input */}
+//           <div className="relative">
+//             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+//             <input
+//               type="text"
+//               name="name"
+//               value={formData.name}
+//               onChange={handleChange}
+//               placeholder="Full Name"
+//               required
+//               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+//             />
+//           </div>
+
+//           {/* Email Input */}
+//           <div className="relative">
+//             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+//             <input
+//               type="email"
+//               name="email"
+//               value={formData.email}
+//               onChange={handleChange}
+//               placeholder="Email Address"
+//               required
+//               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+//             />
+//           </div>
+
+//           {/* Password Input */}
+//           <div className="relative">
+//             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+//             <input
+//               type={showPassword ? 'text' : 'password'}
+//               name="password"
+//               value={formData.password}
+//               onChange={handleChange}
+//               placeholder="Password"
+//               required
+//               className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+//             />
+//             <button
+//               type="button"
+//               onClick={() => setShowPassword(!showPassword)}
+//               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+//               aria-label={showPassword ? 'Hide password' : 'Show password'}
+//             >
+//               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+//             </button>
+//           </div>
+
+//           {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+
+//           <button
+//             type="submit"
+//             disabled={loading}
+//             className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+//           >
+//             {loading ? 'Creating Account...' : 'Sign Up'}
+//           </button>
+//         </form>
+
+//         <p className="mt-6 text-center text-sm text-gray-600">
+//           Already have an account?{' '}
+//           <Link to="/signin" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
+//             Sign In
+//           </Link>
+//         </p>
+//       </div>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { BASE_URL } from '../config';
-import { User, Mail, Lock, Eye, EyeOff, PartyPopper } from 'lucide-react';
+import { User, Mail, Lock, Phone, Eye, EyeOff, PartyPopper } from 'lucide-react';
 
 export default function SignUp() {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
   const [error, setError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -258,8 +400,7 @@ export default function SignUp() {
       setLoading(false);
     }
   };
-  
-  // A more visually appealing success message screen
+
   if (isSubmitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -267,7 +408,7 @@ export default function SignUp() {
           <PartyPopper className="mx-auto h-16 w-16 text-green-500" strokeWidth={1.5} />
           <h2 className="mt-6 text-2xl font-bold text-gray-800">Registration Successful!</h2>
           <p className="mt-4 text-gray-600">
-            We've sent a verification link to <strong className="text-gray-900">{formData.email}</strong>. Please check your inbox to complete your registration.
+            We've sent a verification link to <strong className="text-gray-900">{formData.email}</strong>.
           </p>
           <Link to="/signin" className="mt-8 inline-block bg-blue-600 text-white font-semibold py-2 px-8 rounded-lg hover:bg-blue-700 transition-colors">
             Go to Sign In
@@ -286,7 +427,7 @@ export default function SignUp() {
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name Input */}
+          {/* Name */}
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
@@ -296,11 +437,11 @@ export default function SignUp() {
               onChange={handleChange}
               placeholder="Full Name"
               required
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          {/* Email Input */}
+          {/* Email */}
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
@@ -310,11 +451,25 @@ export default function SignUp() {
               onChange={handleChange}
               placeholder="Email Address"
               required
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          {/* Password Input */}
+          {/* ✅ Phone Number */}
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              placeholder="Phone Number"
+              required
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Password */}
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
@@ -324,13 +479,12 @@ export default function SignUp() {
               onChange={handleChange}
               placeholder="Password"
               required
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -341,7 +495,7 @@ export default function SignUp() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
           >
             {loading ? 'Creating Account...' : 'Sign Up'}
           </button>
@@ -357,3 +511,4 @@ export default function SignUp() {
     </div>
   );
 }
+

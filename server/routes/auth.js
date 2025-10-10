@@ -23,6 +23,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+// const { sendPhoneOtp } = require('../utils/twilio'); 
 
 // --- Import the authentication middleware ---
 const verifyToken = require('../middlewares/verifyToken');
@@ -88,20 +89,90 @@ const createNotification = async ({ userId, message, type, forAdmin = false }, r
   }
 };
 
-router.post('/signup', async (req, res) => {
-  const { name, email, password } = req.body;
+/////////////////////////////
+const twilio = require('twilio');
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+const sendPhoneOtp = async (phone, otp) => {
   try {
-    if (await User.findOne({ email })) {
-        return res.status(400).json({ message: 'An account with this email already exists.' });
-    }
+    const message = await client.messages.create({
+      body: `Your verification code is ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phone
+    });
+    return message.sid;
+  } catch (err) {
+    console.error('Twilio error:', err);
+    throw new Error('Failed to send OTP');
+  }
+};
+
+
+
+
+// router.post('/signup', async (req, res) => {
+//   const { name, email, password } = req.body;
+//   try {
+//     if (await User.findOne({ email })) {
+//         return res.status(400).json({ message: 'An account with this email already exists.' });
+//     }
     
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const verificationToken = crypto.randomBytes(32).toString('hex');
+//     const verificationExpires = Date.now() + 3600000; // Token expires in 1 hour
+
+//     const newUser = new User({
+//       name,
+//       email,
+//       password: hashedPassword,
+//       emailVerificationToken: verificationToken,
+//       emailVerificationExpires: verificationExpires,
+//     });
+
+//     await newUser.save();
+
+//     // --- Send Verification Email using SendGrid ---
+//     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+//     const msg = {
+//       to: newUser.email,
+//       from: 'admin@zenithile.com', // IMPORTANT: Use a verified sender from your SendGrid account
+//       templateId: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID,
+//       dynamic_template_data: {
+//         name: newUser.name,
+//         verificationUrl: verificationUrl,
+//       },
+//     };
+
+//     await sgMail.send(msg);
+
+//     res.status(201).json({ message: 'Registration successful! Please check your email to verify your account.' });
+
+//   } catch (err) {
+//     console.error('Signup Error:', err);
+//     if (err.response) {
+//       console.error('SendGrid Error Body:', err.response.body)
+//     }
+//     res.status(500).json({ message: 'Server error during registration.' });
+//   }
+// });
+
+router.post('/signup', async (req, res) => {
+  const { name, email, phone, password } = req.body;
+
+  try {
+    // Check for existing user by email or phone
+    if (await User.findOne({ $or: [{ email }, { phone }] })) {
+      return res.status(400).json({ message: 'An account with this email or phone number already exists.' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpires = Date.now() + 3600000; // Token expires in 1 hour
+    const verificationExpires = Date.now() + 3600000; // 1 hour
 
     const newUser = new User({
       name,
       email,
+      phone,
       password: hashedPassword,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires,
@@ -109,15 +180,15 @@ router.post('/signup', async (req, res) => {
 
     await newUser.save();
 
-    // --- Send Verification Email using SendGrid ---
+    // SendGrid verification email
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
     const msg = {
       to: newUser.email,
-      from: 'basantchamp1@gmail.com', // IMPORTANT: Use a verified sender from your SendGrid account
+      from: 'admin@zenithile.com',
       templateId: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID,
       dynamic_template_data: {
         name: newUser.name,
-        verificationUrl: verificationUrl,
+        verificationUrl,
       },
     };
 
@@ -127,56 +198,118 @@ router.post('/signup', async (req, res) => {
 
   } catch (err) {
     console.error('Signup Error:', err);
-    if (err.response) {
-      console.error('SendGrid Error Body:', err.response.body)
-    }
+    if (err.response) console.error('SendGrid Error Body:', err.response.body);
     res.status(500).json({ message: 'Server error during registration.' });
   }
 });
 
 
-// Signup Route
-// router.post('/signup', async (req, res) => {
-//   try {
-//     const { name, email, password } = req.body;
 
-//     // Check if user already exists
-//     const existingUser = await User.findOne({ email });
-//     if (existingUser) {
-//       if (!existingUser.isVerified) {
-//         return res.status(400).json({ message: 'Please verify your email before signing up again.' });
-//       }
-//       return res.status(400).json({ message: 'User already exists.' });
+
+
+// router.post('/signup', async (req, res) => {
+//   const { name, email, password, phone } = req.body;
+//   if (!name || !email || !password || !phone) {
+//     return res.status(400).json({ message: 'Name, email, password, and phone are required.' });
+//   }
+
+//   try {
+//     // Check if email already exists
+//     if (await User.findOne({ email })) {
+//       return res.status(400).json({ message: 'Email already registered.' });
+//     }
+
+//     // Check if phone OTP was verified
+//     const phoneOtp = await PhoneOtp.findOne({ phone });
+//     if (phoneOtp) {
+//       return res.status(400).json({ message: 'Please verify your phone before signing up.' });
 //     }
 
 //     const hashedPassword = await bcrypt.hash(password, 10);
-//     const user = new User({
+//     const verificationToken = crypto.randomBytes(32).toString('hex');
+//     const verificationExpires = Date.now() + 3600000;
+
+//     const newUser = new User({
 //       name,
 //       email,
 //       password: hashedPassword,
-//       isVerified: false,
-//     });
-//     await user.save();
-
-//     // Create verification token (expires in 15 mins)
-//     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
-
-//     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
-
-//     await sendgrid.send({
-//       to: user.email,
-//       from: process.env.EMAIL_USER,
-//       subject: 'Verify Your Email',
-//       html: `<p>Click <a href="${url}">here</a> to verify your account. Link expires in 15 minutes.</p>`,
+//       phone,
+//       isPhoneVerified: true,
+//       emailVerificationToken: verificationToken,
+//       emailVerificationExpires: verificationExpires
 //     });
 
-//     res.status(200).json({ message: 'Signup successful, please verify your email.' });
+//     await newUser.save();
 
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error signing up', error: error.message });
+//     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+//     const msg = {
+//       to: email,
+//       from: 'admin@zenithile.com',
+//       templateId: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID,
+//       dynamic_template_data: { name, verificationUrl }
+//     };
+//     await sgMail.send(msg);
+
+//     res.status(201).json({ message: 'Registration successful! Please check your email.' });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error during registration.' });
 //   }
 // });
 
+
+
+
+// ///////////////////////////////////////////////
+
+// const PhoneOtp = require('../models/PhoneOtp');
+
+// router.post('/send-phone-otp', async (req, res) => {
+//   const { phone } = req.body;
+//   if (!phone) return res.status(400).json({ message: 'Phone is required' });
+
+//   try {
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//     const expires = Date.now() + 5 * 60 * 1000; // 5 min
+
+//     let phoneOtp = await PhoneOtp.findOne({ phone });
+//     if (!phoneOtp) {
+//       phoneOtp = new PhoneOtp({ phone, otp, expires });
+//     } else {
+//       phoneOtp.otp = otp;
+//       phoneOtp.expires = expires;
+//     }
+//     await phoneOtp.save();
+
+//     await sendPhoneOtp(phone, otp); // Twilio helper
+
+//     res.json({ message: 'OTP sent to your phone' });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Failed to send OTP' });
+//   }
+// });
+
+
+
+// router.post('/verify-phone-otp', async (req, res) => {
+//   const { phone, otp } = req.body;
+
+//   try {
+//     const phoneOtp = await PhoneOtp.findOne({ phone });
+//     if (!phoneOtp) return res.status(404).json({ message: 'OTP not found' });
+//     if (phoneOtp.otp !== otp || phoneOtp.expires < Date.now())
+//       return res.status(400).json({ message: 'Invalid or expired OTP' });
+
+//     // Mark OTP as verified (can delete it)
+//     await PhoneOtp.deleteOne({ phone });
+
+//     res.json({ message: 'Phone verified successfully' });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
 
 
 router.get('/verify-email/:token', async (req, res) => {
@@ -218,49 +351,6 @@ router.get('/verify-email/:token', async (req, res) => {
     }
 });
 
-// Verify Email Route
-// router.get('/verify/:token', async (req, res) => {
-//   try {
-//     const user = await User.findOne({ verificationToken: req.params.token });
-
-//     if (!user) {
-//       // Token is gone, but maybe they are already verified
-//       const alreadyVerifiedUser = await User.findOne({ isVerified: true, verificationToken: undefined });
-//       if (alreadyVerifiedUser) {
-//         return res.send('Your email is already verified.');
-//       }
-//       return res.send('Verification failed or token expired.');
-//     }
-
-//     // Check if already verified
-//     if (user.isVerified) {
-//       return res.send('Your email is already verified.');
-//     }
-
-//     // Check expiry
-//     if (user.verificationTokenExpires < Date.now()) {
-//       await User.findByIdAndDelete(user._id); // delete expired unverified user
-//       return res.send('Verification token expired. Please sign up again.');
-//     }
-
-//     // Verify user
-//     user.isVerified = true;
-//     user.verificationToken = undefined;
-//     user.verificationTokenExpires = undefined;
-//     await user.save();
-
-//     res.send('Email verified successfully!');
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send('Server error.');
-//   }
-// });
-
-
-
-
-
-
 router.post('/vendor/signup', async (req, res) => {
   const { instituteName, representativeName, email, phone, password } = req.body;
   try {
@@ -275,7 +365,6 @@ router.post('/vendor/signup', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 
 router.post('/signin', async (req, res) => {
   const { email, password } = req.body;
@@ -344,32 +433,6 @@ router.get('/book/:id', async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch book' });
   }
 });
-
-// router.delete('/admin/book/:id', async (req, res) => {
-//   try {
-//     const book = await Book.findById(req.params.id);
-//     if (!book) return res.status(404).json({ success: false, message: 'Book not found' });
-
-//     const deleteObjects = [];
-//     if (book.coverUrl) deleteObjects.push({ Key: book.coverUrl.split('.com/')[1] });
-//     book.chapters.forEach(ch => {
-//       if (ch.pdfUrl) deleteObjects.push({ Key: ch.pdfUrl.split('.com/')[1] });
-//     });
-
-//     if (deleteObjects.length) {
-//       await s3.send(new DeleteObjectsCommand({
-//         Bucket: process.env.AWS_BUCKET_NAME,
-//         Delete: { Objects: deleteObjects }
-//       }));
-//     }
-
-//     await Book.findByIdAndDelete(req.params.id);
-//     res.json({ success: true, message: 'Book and files deleted' });
-//   } catch (err) {
-//     console.error('Delete error:', err);
-//     res.status(500).json({ success: false, message: 'Delete failed' });
-//   }
-// });
 
 
 router.delete('/admin/book/:id', async (req, res) => {
@@ -616,7 +679,6 @@ router.delete('/admin/book/:bookId/chapter/:chapterId', verifyToken, async (req,
     }
 });
 
-
 // ... (The rest of your routes, like /book/:bookId/chapter/:chapterId, etc., remain unchanged)
 router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
   try {
@@ -647,42 +709,153 @@ router.get('/book/:bookId/chapter/:chapterId', async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
+
+////////////////////////old code///////////////below/////////////////////////////////////////////////////////
+// router.post('/request-access', async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'No token provided' });
+
+//     let decoded;
+//     try {
+//       decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     } catch (err) {
+//       return res.status(401).json({ message: 'Invalid token' });
+//     }
+
+//     const userId = decoded.id;
+//     const { bookId, chapterIds } = req.body;
+
+//     if (!userId || !bookId || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+//       return res.status(400).json({ message: 'Invalid request payload' });
+//     }
+
+//     const existingRequest = await ChapterAccessRequest.findOne({
+//       userId,
+//       bookId,
+//       status: 'pending',
+//       chapters: { $in: chapterIds }
+//     });
+
+//     if (existingRequest) {
+//       return res.status(409).json({ message: 'Already requested access for selected chapters' });
+//     }
+
+//     const request = new ChapterAccessRequest({
+//       userId,
+//       bookId,
+//       chapters: chapterIds
+//     });
+
+//     await request.save();
+
+//     const book = await Book.findById(bookId);
+//     const chapterNames = book.chapters
+//       .filter(ch => chapterIds.includes(ch._id.toString()))
+//       .map(ch => ch.name);
+
+//     const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+//     await createNotification({ userId, type: 'requestSubmitted', message }, req);
+
+//     const user = await User.findById(userId);
+//     await createNotification({
+//       message: `📨 Access request from "${user.name}" (${user.email}) for "${book.name}" - Chapters: ${chapterNames.join(', ')}`,
+//       type: 'userRequest',
+//       forAdmin: true
+//     });
+
+//     res.status(201).json({ message: '✅ Access request submitted', request });
+//   } catch (err) {
+//     console.error('❌ Access request error:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+
+// router.get('/admin/access-requests', async (req, res) => {
+//   try {
+//     const requests = await ChapterAccessRequest.find()
+//       .populate('userId', 'name email')
+//       .populate('bookId', 'name chapters')
+//       .lean()
+//       .sort({ requestedAt: -1 });
+
+//     const transformed = requests.map(req => {
+//       if (!req.bookId || !req.bookId.chapters) return null;
+//       const chapterDetails = req.chapters.map(chId => {
+//         const found = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
+//         return found ? found.name : 'Unknown Chapter';
+//       });
+
+//       return { ...req, chapterNames: chapterDetails };
+//     }).filter(Boolean);
+
+//     res.json({ success: true, requests: transformed });
+//   } catch (err) {
+//     console.error('Error fetching access requests:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+// router.put('/admin/access-request-status', async (req, res) => {
+//   try {
+//     const { requestId, status } = req.body;
+//     if (!['approved', 'rejected'].includes(status)) {
+//       return res.status(400).json({ message: 'Invalid status' });
+//     }
+
+//     const request = await ChapterAccessRequest.findById(requestId);
+//     if (!request) return res.status(404).json({ message: 'Request not found' });
+
+//     request.status = status;
+//     await request.save();
+
+//     const book = await Book.findById(request.bookId);
+//     const chapterNames = book.chapters
+//       .filter(ch => request.chapters.includes(ch._id.toString()))
+//       .map(ch => ch.name);
+
+//     const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+//     await createNotification({ userId: request.userId, type: status, message }, req);
+
+//     res.json({ message: `✅ Request ${status}` });
+//   } catch (err) {
+//     console.error('Status update error:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+/////////////////////////////////new code //////////////////////////////////////////////////////////////
+
 router.post('/request-access', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'No token provided' });
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
     const { bookId, chapterIds } = req.body;
 
-    if (!userId || !bookId || !Array.isArray(chapterIds) || chapterIds.length === 0) {
+    if (!userId || !bookId || !Array.isArray(chapterIds) || chapterIds.length === 0)
       return res.status(400).json({ message: 'Invalid request payload' });
-    }
 
-    const existingRequest = await ChapterAccessRequest.findOne({
-      userId,
-      bookId,
-      status: 'pending',
-      chapters: { $in: chapterIds }
-    });
+    // Create per-chapter objects
+    const chapters = chapterIds.map(id => ({ chapterId: id, status: 'pending' }));
 
-    if (existingRequest) {
-      return res.status(409).json({ message: 'Already requested access for selected chapters' });
-    }
-
-    const request = new ChapterAccessRequest({
-      userId,
-      bookId,
-      chapters: chapterIds
-    });
-
+    const request = new ChapterAccessRequest({ userId, bookId, chapters });
     await request.save();
 
     const book = await Book.findById(bookId);
@@ -690,10 +863,8 @@ router.post('/request-access', async (req, res) => {
       .filter(ch => chapterIds.includes(ch._id.toString()))
       .map(ch => ch.name);
 
-    const message = `📝 Request submitted for book "${book.name}" - chapters: ${chapterNames.join(', ')}`;
-    await createNotification({ userId, type: 'requestSubmitted', message }, req);
-
     const user = await User.findById(userId);
+
     await createNotification({
       message: `📨 Access request from "${user.name}" (${user.email}) for "${book.name}" - Chapters: ${chapterNames.join(', ')}`,
       type: 'userRequest',
@@ -707,6 +878,7 @@ router.post('/request-access', async (req, res) => {
   }
 });
 
+
 router.get('/admin/access-requests', async (req, res) => {
   try {
     const requests = await ChapterAccessRequest.find()
@@ -717,12 +889,20 @@ router.get('/admin/access-requests', async (req, res) => {
 
     const transformed = requests.map(req => {
       if (!req.bookId || !req.bookId.chapters) return null;
-      const chapterDetails = req.chapters.map(chId => {
-        const found = req.bookId.chapters.find(ch => ch._id.toString() === chId.toString());
-        return found ? found.name : 'Unknown Chapter';
+
+      const chapters = req.chapters.map(chObj => {
+        const chapterId = chObj.chapterId?.toString?.();
+        const status = chObj.status || 'pending';
+        const found = req.bookId.chapters.find(ch => ch._id?.toString() === chapterId);
+
+        return {
+          chapterId,
+          name: found?.name || 'Unknown Chapter',
+          status,
+        };
       });
 
-      return { ...req, chapterNames: chapterDetails };
+      return { ...req, chapters };
     }).filter(Boolean);
 
     res.json({ success: true, requests: transformed });
@@ -732,79 +912,350 @@ router.get('/admin/access-requests', async (req, res) => {
   }
 });
 
+
 router.put('/admin/access-request-status', async (req, res) => {
   try {
-    const { requestId, status } = req.body;
-    if (!['approved', 'rejected'].includes(status)) {
+    const { requestId, chapterId, status } = req.body;
+    if (!['approved', 'rejected'].includes(status))
       return res.status(400).json({ message: 'Invalid status' });
-    }
 
     const request = await ChapterAccessRequest.findById(requestId);
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
-    request.status = status;
+    const chapter = request.chapters.find(ch => ch.chapterId === chapterId);
+    if (!chapter) return res.status(404).json({ message: 'Chapter not found in request' });
+
+    chapter.status = status;
+
+    // Update overall request status
+    if (request.chapters.every(ch => ch.status === 'approved')) request.status = 'approved';
+    else if (request.chapters.every(ch => ch.status === 'rejected')) request.status = 'rejected';
+    else request.status = 'pending';
+
     await request.save();
 
     const book = await Book.findById(request.bookId);
-    const chapterNames = book.chapters
-      .filter(ch => request.chapters.includes(ch._id.toString()))
-      .map(ch => ch.name);
+    const chapterName = book.chapters.find(ch => ch._id.toString() === chapterId)?.name || 'Unknown';
 
-    const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - chapters: ${chapterNames.join(', ')}`;
+    const message = `✅ Access ${status.toUpperCase()} for "${book.name}" - Chapter: ${chapterName}`;
     await createNotification({ userId: request.userId, type: status, message }, req);
 
-    res.json({ message: `✅ Request ${status}` });
+    res.json({ message: `✅ Chapter ${status}` });
   } catch (err) {
     console.error('Status update error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-router.get('/user/chapter-access/all', verifyToken(), async (req, res) => {
-  try {
-    const userId = req.user.id; // Now correctly get userId from middleware
-    const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
-      .populate({ path: 'bookId', select: 'name coverUrl chapters' }).lean();
 
-    const bookMap = {};
-    approvedRequests.forEach(req => {
-      const book = req.bookId;
-      if (!book || !book.chapters) return;
-      if (!bookMap[book._id]) {
-        bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
-      }
-      req.chapters.forEach(chId => {
-        const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
-        if (chapter) { bookMap[book._id].chapters.push(chapter); }
-      });
-    });
+// router.put('/admin/access-request/:requestId/chapter/:chapterId', async (req, res) => {
+//   try {
+//     const { requestId, chapterId } = req.params;
+//     const { status } = req.body;
 
-    res.json({ success: true, books: Object.values(bookMap) });
-  } catch (err) {
-    console.error('❌ Error in /user/chapter-access/all:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+//     if (!['approved', 'rejected'].includes(status))
+//       return res.status(400).json({ message: 'Invalid status value' });
+
+//     const request = await ChapterAccessRequest.findById(requestId);
+//     if (!request) return res.status(404).json({ message: 'Access request not found' });
+
+//     const chapter = request.chapters.find(c => c.chapterId === chapterId);
+//     if (!chapter)
+//       return res.status(404).json({ message: 'Chapter not found in request' });
+
+//     // Update status
+//     chapter.status = status;
+
+//     // Update request-level status
+//     if (request.chapters.every(ch => ch.status === 'approved'))
+//       request.status = 'approved';
+//     else if (request.chapters.every(ch => ch.status === 'rejected'))
+//       request.status = 'rejected';
+//     else request.status = 'pending';
+
+//     await request.save();
+
+//     res.json({ success: true, message: `Chapter ${status} successfully.` });
+//   } catch (error) {
+//     console.error('Error updating chapter access:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+
+// router.put('/admin/access-request/:requestId/chapter/:chapterId', async (req, res) => {
+//   try {
+//     const { requestId, chapterId } = req.params;
+//     const { status } = req.body;
+
+//     if (!['approved', 'rejected'].includes(status))
+//       return res.status(400).json({ message: 'Invalid status value' });
+
+//     const request = await ChapterAccessRequest.findById(requestId);
+//     if (!request) return res.status(404).json({ message: 'Access request not found' });
+
+//     const chapter = request.chapters.find(c => c.chapterId === chapterId);
+//     if (!chapter)
+//       return res.status(404).json({ message: 'Chapter not found in request' });
+
+//     // Update status for the selected chapter
+//     chapter.status = status;
+
+//     // Update global request status
+//     if (request.chapters.every(ch => ch.status === 'approved')) request.status = 'approved';
+//     else if (request.chapters.every(ch => ch.status === 'rejected')) request.status = 'rejected';
+//     else request.status = 'pending';
+
+//     await request.save();
+
+//     // If approved, persist the chapter access
+//     if (status === 'approved') {
+//       const { userId, bookId } = request;
+
+//       // Avoid duplicate access creation
+//       const existingAccess = await ChapterAssignment.findOne({ userId, bookId, chapterId });
+//       if (!existingAccess) {
+//         const newAccess = new ChapterAssignment({
+//           userId,
+//           bookId,
+//           chapterId,
+//           assignedAt: new Date(),
+//           expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // optional 1 year expiry
+//         });
+//         await newAccess.save();
+//       }
+//     }
+
+//     res.json({ success: true, message: `Chapter ${status} successfully.` });
+//   } catch (error) {
+//     console.error('Error updating chapter access:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+router.put('/admin/access-request/:requestId/chapter/:chapterId', async (req, res) => {
+  try {
+    const { requestId, chapterId } = req.params;
+    const { status } = req.body;
+
+    if (!['approved', 'rejected'].includes(status))
+      return res.status(400).json({ message: 'Invalid status value' });
+
+    const request = await ChapterAccessRequest.findById(requestId);
+    if (!request) return res.status(404).json({ message: 'Access request not found' });
+
+    const chapter = request.chapters.find(c => c.chapterId === chapterId);
+    if (!chapter)
+      return res.status(404).json({ message: 'Chapter not found in request' });
+
+    // ✅ Only update status in ChapterAccessRequest
+    chapter.status = status;
+
+    // Update request-level status
+    if (request.chapters.every(ch => ch.status === 'approved'))
+      request.status = 'approved';
+    else if (request.chapters.every(ch => ch.status === 'rejected'))
+      request.status = 'rejected';
+    else request.status = 'pending';
+
+    await request.save();
+
+    res.json({ success: true, message: `Chapter ${status} successfully.` });
+  } catch (error) {
+    console.error('Error updating chapter access:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+// router.get('/user/chapter-access/all', verifyToken(), async (req, res) => {
+//   try {
+//     const userId = req.user.id; // Now correctly get userId from middleware
+//     const approvedRequests = await ChapterAccessRequest.find({ userId, status: 'approved' })
+//       .populate({ path: 'bookId', select: 'name coverUrl chapters' }).lean();
+
+//     const bookMap = {};
+//     approvedRequests.forEach(req => {
+//       const book = req.bookId;
+//       if (!book || !book.chapters) return;
+//       if (!bookMap[book._id]) {
+//         bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
+//       }
+//       req.chapters.forEach(chId => {
+//         const chapter = book.chapters.find(c => c._id.toString() === chId.toString());
+//         if (chapter) { bookMap[book._id].chapters.push(chapter); }
+//       });
+//     });
+
+//     res.json({ success: true, books: Object.values(bookMap) });
+//   } catch (err) {
+//     console.error('❌ Error in /user/chapter-access/all:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
+router.get('/user/chapter-access/all', verifyToken(), async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch approved requests
+    const approvedRequests = await ChapterAccessRequest.find({ userId })
+      .populate('bookId', 'name coverUrl chapters')
+      .lean();
+
+    // Fetch expiry-based assignments
+    const expiryAssignments = await ChapterAssignment.find({ userId })
+      .populate('bookId', 'name coverUrl chapters')
+      .lean();
+
+    const bookMap = {};
+
+    // Process expiry-based assignments first (priority)
+    expiryAssignments.forEach(assign => {
+      const book = assign.bookId;
+      if (!book || !book.chapters) return;
+
+      if (!bookMap[book._id]) {
+        bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
+      }
+
+      const chapter = book.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
+      if (chapter) {
+        bookMap[book._id].chapters.push({ ...chapter, expiresAt: assign.expiresAt });
+      }
+    });
+
+    // Process approved requests (only chapters with status 'approved')
+    approvedRequests.forEach(reqItem => {
+      const book = reqItem.bookId;
+      if (!book || !book.chapters) return;
+
+      if (!bookMap[book._id]) {
+        bookMap[book._id] = { _id: book._id, name: book.name, coverUrl: book.coverUrl, chapters: [] };
+      }
+
+      reqItem.chapters.forEach(chObj => {
+        if (chObj.status !== 'approved') return;
+
+        // Avoid duplicates if already added via expiry
+        if (!bookMap[book._id].chapters.find(c => c._id.toString() === chObj.chapterId.toString())) {
+          const chapter = book.chapters.find(ch => ch._id.toString() === chObj.chapterId.toString());
+          if (chapter) bookMap[book._id].chapters.push(chapter);
+        }
+      });
+    });
+
+    res.json({ success: true, books: Object.values(bookMap) });
+  } catch (err) {
+    console.error('❌ Error in /user/chapter-access/all:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// router.get('/user/chapter-access/all', verifyToken, async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+
+//     const approvedRequests = await ChapterAccessRequest.find({ userId })
+//       .populate('bookId', 'name chapters')
+//       .lean();
+
+//     const accessData = [];
+
+//     approvedRequests.forEach(reqItem => {
+//       // ✅ Only include approved chapters
+//       const approvedChapters = reqItem.chapters.filter(ch => ch.status === 'approved');
+
+//       // ❌ Skip books that have no approved chapters
+//       if (approvedChapters.length === 0) return;
+
+//       // ✅ Map chapter info
+//       const chapters = approvedChapters.map(ch => {
+//         const chapterMeta = reqItem.bookId.chapters.find(
+//           c => c._id.toString() === ch.chapterId.toString()
+//         );
+//         return {
+//           chapterId: ch.chapterId,
+//           chapterName: chapterMeta?.name || 'Unknown Chapter'
+//         };
+//       });
+
+//       accessData.push({
+//         bookId: reqItem.bookId._id,
+//         bookName: reqItem.bookId.name,
+//         chapters
+//       });
+//     });
+
+//     res.json(accessData);
+//   } catch (err) {
+//     console.error('❌ Error fetching user chapter access:', err);
+//     res.status(500).json({ message: 'Server error fetching chapter access' });
+//   }
+// });
+
+
+
+// router.get('/user/chapter-access/:bookId', async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'No token' });
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+//     const requests = await ChapterAccessRequest.find({
+//       userId: decoded.id,
+//       bookId: req.params.bookId,
+//       status: 'approved'
+//     }).lean();
+
+//     const accessInfo = requests.flatMap(r => 
+//   r.chapters.map(chapterId => ({
+//     chapterId: chapterId.toString()
+//   }))
+// );
+
+//     res.json({ success: true, accessInfo });
+//   } catch (err) {
+//     console.error('Error fetching chapter access:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
 
 
 router.get('/user/chapter-access/:bookId', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'No token' });
+    if (!token) return res.status(401).json({ message: 'No token provided' });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const requests = await ChapterAccessRequest.find({
+    // Fetch all access entries for this user and book
+    const accessList = await ChapterAssignment.find({
       userId: decoded.id,
-      bookId: req.params.bookId,
-      status: 'approved'
-    }).lean();
+      bookId: req.params.bookId
+    });
 
-    const accessInfo = requests.flatMap(r => 
-  r.chapters.map(chapterId => ({
-    chapterId: chapterId.toString()
-  }))
-);
+    const accessInfo = accessList.map(a => ({
+      chapterId: a.chapterId.toString(),
+      expiresAt: a.expiresAt,
+    }));
 
     res.json({ success: true, accessInfo });
   } catch (err) {
@@ -885,27 +1336,177 @@ router.put('/admin/revoke-chapter-access', async (req, res) => {
 
 
 
+// router.get('/admin/access-management', async (req, res) => {
+//   try {
+//     const [approvedRequests, expiryAssignments] = await Promise.all([
+//       ChapterAccessRequest.find({ status: 'approved' })
+//         .populate('userId', 'name email')
+//         .populate('bookId', 'name chapters'),
+//       ChapterAssignment.find()
+//         .populate('userId', 'name email')
+//         .populate('bookId', 'name chapters')
+//     ]);
+
+//     const accessMap = new Map();
+
+//     // Process expiry-based assignments first (priority)
+//     expiryAssignments.forEach(assign => {
+//       if (!assign.userId || !assign.bookId || !assign.chapterId) return;
+
+//       const key = `${assign.userId._id}_${assign.bookId._id}_${assign.chapterId}`;
+//       const chapter = assign.bookId.chapters.find(
+//         ch => ch._id.toString() === assign.chapterId.toString()
+//       );
+
+//       accessMap.set(key, {
+//         type: 'expiry',
+//         chapterId: assign.chapterId,
+//         expiresAt: assign.expiresAt,
+//         bookId: assign.bookId._id,
+//         bookName: assign.bookId.name,
+//         chapterName: chapter?.name || 'Unknown',
+//         user: assign.userId,
+//         accessId: assign._id
+//       });
+//     });
+
+//     // Process approved requests if not already overridden by expiry
+//     approvedRequests.forEach(req => {
+//       if (!req.userId || !req.bookId || !req.chapters) return;
+
+//       req.chapters.forEach(chId => {
+//         const key = `${req.userId._id}_${req.bookId._id}_${chId}`;
+//         if (!accessMap.has(key)) {
+//           const chapter = req.bookId.chapters.find(
+//             ch => ch._id.toString() === chId.toString()
+//           );
+
+//           accessMap.set(key, {
+//             type: 'approved',
+//             chapterId: chId,
+//             bookId: req.bookId._id,
+//             bookName: req.bookId.name,
+//             chapterName: chapter?.name || 'Unknown',
+//             user: req.userId,
+//             accessId: req._id
+//           });
+//         }
+//       });
+//     });
+
+//     // Group by user
+//     const grouped = {};
+//     accessMap.forEach(access => {
+//       const uid = access.user._id;
+//       if (!grouped[uid]) {
+//         grouped[uid] = {
+//           user: access.user,
+//           chapters: []
+//         };
+//       }
+//       grouped[uid].chapters.push(access);
+//     });
+
+//     res.json(Object.values(grouped));
+//   } catch (err) {
+//     console.error("❌ Failed to load access-management:", err);
+//     res.status(500).json({ message: 'Server error while loading access data' });
+//   }
+// });
+
+
+
+
+
+
+// router.get('/admin/access-management', async (req, res) => {
+//   try {
+//     const [approvedRequests, expiryAssignments] = await Promise.all([
+//       ChapterAccessRequest.find({}).populate('userId', 'name email').populate('bookId', 'name chapters').lean(),
+//       ChapterAssignment.find({}).populate('userId', 'name email').populate('bookId', 'name chapters').lean()
+//     ]);
+
+//     const accessMap = new Map();
+
+//     // Process expiry assignments first
+//     expiryAssignments.forEach(assign => {
+//       if (!assign.userId || !assign.bookId || !assign.chapterId) return;
+
+//       const key = `${assign.userId._id}_${assign.bookId._id}_${assign.chapterId}`;
+//       const chapter = assign.bookId.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
+
+//       accessMap.set(key, {
+//         type: 'expiry',
+//         chapterId: assign.chapterId,
+//         expiresAt: assign.expiresAt,
+//         bookId: assign.bookId._id,
+//         bookName: assign.bookId.name,
+//         chapterName: chapter?.name || 'Unknown',
+//         user: assign.userId,
+//         accessId: assign._id
+//       });
+//     });
+
+//     // Process approved requests
+//     approvedRequests.forEach(reqItem => {
+//       if (!reqItem.userId || !reqItem.bookId || !reqItem.chapters) return;
+
+//       reqItem.chapters.forEach(chObj => {
+//         if (chObj.status !== 'approved') return;
+
+//         const key = `${reqItem.userId._id}_${reqItem.bookId._id}_${chObj.chapterId}`;
+//         if (!accessMap.has(key)) {
+//           const chapter = reqItem.bookId.chapters.find(ch => ch._id.toString() === chObj.chapterId.toString());
+//           accessMap.set(key, {
+//             type: 'approved',
+//             chapterId: chObj.chapterId,
+//             bookId: reqItem.bookId._id,
+//             bookName: reqItem.bookId.name,
+//             chapterName: chapter?.name || 'Unknown',
+//             user: reqItem.userId,
+//             accessId: reqItem._id
+//           });
+//         }
+//       });
+//     });
+
+//     // Group by user
+//     const grouped = {};
+//     accessMap.forEach(access => {
+//       const uid = access.user._id;
+//       if (!grouped[uid]) grouped[uid] = { user: access.user, chapters: [] };
+//       grouped[uid].chapters.push(access);
+//     });
+
+//     res.json(Object.values(grouped));
+//   } catch (err) {
+//     console.error("❌ Failed to load access-management:", err);
+//     res.status(500).json({ message: 'Server error while loading access data' });
+//   }
+// });
+
+
 router.get('/admin/access-management', async (req, res) => {
   try {
-    const [approvedRequests, expiryAssignments] = await Promise.all([
-      ChapterAccessRequest.find({ status: 'approved' })
-        .populate('userId', 'name email')
-        .populate('bookId', 'name chapters'),
-      ChapterAssignment.find()
+    const [allRequests, expiryAssignments] = await Promise.all([
+      ChapterAccessRequest.find() // ✅ fetch all (not just approved)
         .populate('userId', 'name email')
         .populate('bookId', 'name chapters')
+        .lean(),
+      ChapterAssignment.find({})
+        .populate('userId', 'name email')
+        .populate('bookId', 'name chapters')
+        .lean()
     ]);
 
     const accessMap = new Map();
 
-    // Process expiry-based assignments first (priority)
+    // --- Step 1: Expiry-based Access
     expiryAssignments.forEach(assign => {
       if (!assign.userId || !assign.bookId || !assign.chapterId) return;
 
       const key = `${assign.userId._id}_${assign.bookId._id}_${assign.chapterId}`;
-      const chapter = assign.bookId.chapters.find(
-        ch => ch._id.toString() === assign.chapterId.toString()
-      );
+      const chapter = assign.bookId.chapters.find(ch => ch._id.toString() === assign.chapterId.toString());
 
       accessMap.set(key, {
         type: 'expiry',
@@ -919,75 +1520,163 @@ router.get('/admin/access-management', async (req, res) => {
       });
     });
 
-    // Process approved requests if not already overridden by expiry
-    approvedRequests.forEach(req => {
-      if (!req.userId || !req.bookId || !req.chapters) return;
+    // --- Step 2: Approved (Permanent) Access
+    allRequests.forEach(reqItem => {
+      if (!reqItem.userId || !reqItem.bookId) return;
 
-      req.chapters.forEach(chId => {
-        const key = `${req.userId._id}_${req.bookId._id}_${chId}`;
-        if (!accessMap.has(key)) {
-          const chapter = req.bookId.chapters.find(
-            ch => ch._id.toString() === chId.toString()
-          );
+      // ✅ Filter chapter-level approvals
+      reqItem.chapters
+        .filter(ch => ch.status === 'approved')
+        .forEach(ch => {
+          const key = `${reqItem.userId._id}_${reqItem.bookId._id}_${ch.chapterId}`;
+          if (accessMap.has(key)) return; // Skip if expiry entry exists
+
+          const chapter = reqItem.bookId.chapters.find(c => c._id.toString() === ch.chapterId.toString());
+          if (!chapter) return;
 
           accessMap.set(key, {
             type: 'approved',
-            chapterId: chId,
-            bookId: req.bookId._id,
-            bookName: req.bookId.name,
-            chapterName: chapter?.name || 'Unknown',
-            user: req.userId,
-            accessId: req._id
+            chapterId: ch.chapterId,
+            bookId: reqItem.bookId._id,
+            bookName: reqItem.bookId.name,
+            chapterName: chapter.name,
+            user: reqItem.userId,
+            accessId: reqItem._id
           });
-        }
-      });
+        });
     });
 
-    // Group by user
-    const grouped = {};
-    accessMap.forEach(access => {
-      const uid = access.user._id;
-      if (!grouped[uid]) {
-        grouped[uid] = {
-          user: access.user,
-          chapters: []
-        };
+    // --- Step 3: Group by user
+    const result = [];
+    accessMap.forEach(value => {
+      let userEntry = result.find(r => r.user._id.toString() === value.user._id.toString());
+      if (!userEntry) {
+        userEntry = { user: value.user, chapters: [] };
+        result.push(userEntry);
       }
-      grouped[uid].chapters.push(access);
+      userEntry.chapters.push(value);
     });
 
-    res.json(Object.values(grouped));
+    res.json(result);
   } catch (err) {
-    console.error("❌ Failed to load access-management:", err);
-    res.status(500).json({ message: 'Server error while loading access data' });
+    console.error('❌ Access management fetch error:', err);
+    res.status(500).json({ message: 'Server error while fetching access management data' });
   }
 });
 
 
+
+/////////////////////////////////c1upar 
+
+
+// router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
+//   try {
+//     const { accessId, chapterId } = req.params;
+//     const accessRequest = await ChapterAccessRequest.findById(accessId);
+//     if (!accessRequest) {
+//       const deleted = await ChapterAssignment.findOneAndDelete({ _id: accessId, chapterId: chapterId });
+//        if (!deleted) return res.status(404).json({ message: 'No access found' });
+//     } else {
+//         accessRequest.chapters = accessRequest.chapters.filter(
+//           chId => chId.toString() !== chapterId
+//         );
+//         if (accessRequest.chapters.length === 0) {
+//             await ChapterAccessRequest.findByIdAndDelete(accessId);
+//         } else {
+//             await accessRequest.save();
+//         }
+//     }
+
+//     res.json({ message: '✅ Access revoked' });
+//   } catch (err) {
+//     console.error("❌ Revoke access error:", err);
+//     res.status(500).json({ message: 'Server error while revoking access' });
+//   }
+// });
+
+
+// ✅ FIXED VERSION
 router.delete('/admin/revoke-access/:accessId/:chapterId', async (req, res) => {
   try {
     const { accessId, chapterId } = req.params;
     const accessRequest = await ChapterAccessRequest.findById(accessId);
+
     if (!accessRequest) {
-      const deleted = await ChapterAssignment.findOneAndDelete({ _id: accessId, chapterId: chapterId });
-       if (!deleted) return res.status(404).json({ message: 'No access found' });
+      // Try fallback: maybe it’s a ChapterAssignment ID
+      const deleted = await ChapterAssignment.findOneAndDelete({ _id: accessId, chapterId });
+      if (!deleted) return res.status(404).json({ message: 'No access found' });
     } else {
-        accessRequest.chapters = accessRequest.chapters.filter(
-          chId => chId.toString() !== chapterId
-        );
-        if (accessRequest.chapters.length === 0) {
-            await ChapterAccessRequest.findByIdAndDelete(accessId);
-        } else {
-            await accessRequest.save();
-        }
+      // ✅ FIX: use correct field for filtering
+      accessRequest.chapters = accessRequest.chapters.filter(
+        ch => ch.chapterId.toString() !== chapterId.toString()
+      );
+
+      // If no chapters left → remove entire request
+      if (accessRequest.chapters.length === 0) {
+        await ChapterAccessRequest.findByIdAndDelete(accessId);
+      } else {
+        await accessRequest.save();
+      }
     }
 
-    res.json({ message: '✅ Access revoked' });
+    res.json({ message: '✅ Access revoked successfully' });
   } catch (err) {
     console.error("❌ Revoke access error:", err);
     res.status(500).json({ message: 'Server error while revoking access' });
   }
 });
+
+
+// router.post('/admin/assign-chapters', async (req, res) => {
+//   try {
+//     const { userId, bookId, chapters, durationDays } = req.body;
+
+//     if (!userId || !bookId || !Array.isArray(chapters) || chapters.length === 0 || !durationDays) {
+//       return res.status(400).json({ message: 'Missing required fields' });
+//     }
+
+//     const now = new Date();
+//     const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+//     await ChapterAccessRequest.updateMany(
+//       { userId, bookId, status: 'approved', chapters: { $in: chapters } },
+//       { $pull: { chapters: { $in: chapters } } }
+//     );
+
+//     await ChapterAccessRequest.deleteMany({ userId, bookId, status: 'approved', chapters: { $size: 0 } });
+
+//     const assignments = chapters.map(chapterId => ({
+//       userId,
+//       bookId,
+//       chapterId,
+//       assignedAt: now,
+//       expiresAt
+//     }));
+
+//     await ChapterAssignment.insertMany(assignments);
+
+//     const book = await Book.findById(bookId);
+//     const user = await User.findById(userId);
+
+//     for (const chapterId of chapters) {
+//       const chapter = book.chapters.find(ch => ch._id.toString() === chapterId.toString());
+//       if (chapter) {
+//         const messageToUser = `📚 Chapter "${chapter.name}" from "${book.name}" assigned until ${expiresAt.toLocaleDateString()}`;
+//         await createNotification({ userId, type: 'assigned', message: messageToUser }, req);
+
+//         const messageToAdmin = `🛡️ Assigned chapter "${chapter.name}" from "${book.name}" to user "${user.name}" (${user.email}) until ${expiresAt.toLocaleDateString()}`;
+//         await createNotification({ message: messageToAdmin, type: 'assigned', forAdmin: true });
+//       }
+//     }
+
+//     res.status(201).json({ message: '✅ Chapters assigned successfully with expiry' });
+//   } catch (err) {
+//     console.error('Assignment error:', err);
+//     res.status(500).json({ message: 'Server error while assigning chapters' });
+//   }
+// });
+
+
 
 router.post('/admin/assign-chapters', async (req, res) => {
   try {
@@ -1000,13 +1689,16 @@ router.post('/admin/assign-chapters', async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
+    // 1️⃣ Remove approved chapters from ChapterAccessRequest
     await ChapterAccessRequest.updateMany(
-      { userId, bookId, status: 'approved', chapters: { $in: chapters } },
-      { $pull: { chapters: { $in: chapters } } }
+      { userId, bookId, status: 'approved' },
+      { $pull: { chapters: { chapterId: { $in: chapters } } } }
     );
 
+    // 2️⃣ Delete empty requests
     await ChapterAccessRequest.deleteMany({ userId, bookId, status: 'approved', chapters: { $size: 0 } });
 
+    // 3️⃣ Insert expiry-based assignments
     const assignments = chapters.map(chapterId => ({
       userId,
       bookId,
@@ -1014,9 +1706,9 @@ router.post('/admin/assign-chapters', async (req, res) => {
       assignedAt: now,
       expiresAt
     }));
-
     await ChapterAssignment.insertMany(assignments);
 
+    // 4️⃣ Send notifications
     const book = await Book.findById(bookId);
     const user = await User.findById(userId);
 
@@ -1037,6 +1729,7 @@ router.post('/admin/assign-chapters', async (req, res) => {
     res.status(500).json({ message: 'Server error while assigning chapters' });
   }
 });
+
 
 router.post('/activity-log', async (req, res) => {
   try {
@@ -1521,5 +2214,78 @@ router.get('/admin/user-management-data', verifyToken(['admin']), async (req, re
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
+
+// // Approve chapter access request
+// router.put('/admin/approve-request/:id', async (req, res) => {
+//   try {
+//     const request = await ChapterAccessRequest.findById(req.params.id)
+//       .populate('userId', 'name email')
+//       .populate('bookId', 'name chapters');
+
+//     if (!request) return res.status(404).json({ message: 'Request not found' });
+
+//     // Mark request as approved
+//     request.status = 'approved';
+//     request.chapters.forEach(ch => (ch.status = 'approved'));
+//     await request.save();
+
+//     // Create user notification
+//     await Notification.create({
+//       userId: request.userId._id,
+//       title: 'Chapter Access Approved',
+//       message: `Your request for "${request.bookId.name}" has been approved.`,
+//       link: `/books/${request.bookId._id}`,
+//     });
+
+//     res.json({ message: 'Access approved successfully', request });
+//   } catch (err) {
+//     console.error('Error approving request:', err);
+//     res.status(500).json({ message: 'Error approving request' });
+//   }
+// });
+
+
+// // Reject chapter access request
+// router.put('/admin/reject-request/:id', async (req, res) => {
+//   try {
+//     const request = await ChapterAccessRequest.findById(req.params.id)
+//       .populate('userId', 'name email')
+//       .populate('bookId', 'name');
+
+//     if (!request) return res.status(404).json({ message: 'Request not found' });
+
+//     request.status = 'rejected';
+//     request.chapters.forEach(ch => (ch.status = 'rejected'));
+//     await request.save();
+
+//     await Notification.create({
+//       userId: request.userId._id,
+//       title: 'Chapter Access Rejected',
+//       message: `Your request for "${request.bookId.name}" was rejected.`,
+//     });
+
+//     res.json({ message: 'Access request rejected successfully', request });
+//   } catch (err) {
+//     console.error('Error rejecting request:', err);
+//     res.status(500).json({ message: 'Error rejecting request' });
+//   }
+// });
+// ✅ Get all requests by user for a specific book
+router.get('/user/access-requests/:bookId', verifyToken, async (req, res) => {
+  try {
+    const requests = await ChapterAccessRequest.find({
+      userId: req.user.id,
+      bookId: req.params.bookId,
+    });
+
+    res.json({ requests });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch requests' });
+  }
+});
+
+
 
 module.exports = router;

@@ -32,6 +32,7 @@
     "pdfjs-dist": "^5.3.93",
     "react-pdf": "^10.0.1",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "twilio": "^5.10.2"
   }
 }

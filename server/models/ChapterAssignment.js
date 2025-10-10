@@ -10,3 +10,17 @@ const ChapterAssignmentSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('ChapterAssignment', ChapterAssignmentSchema);
+
+
+
+// const mongoose = require('mongoose');
+
+// const ChapterAssignmentSchema = new mongoose.Schema({
+//   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+//   bookId: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
+//   chapterId: { type: String, required: true },
+//   assignedAt: { type: Date, default: Date.now },
+//   expiresAt: { type: Date },
+// });
+
+// module.exports = mongoose.model('ChapterAssignment', ChapterAssignmentSchema);

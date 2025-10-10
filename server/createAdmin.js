@@ -15,10 +15,10 @@ mongoose.connect(process.env.MONGO_URI)
       return process.exit();
     }
 
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('SmproG@-*5199', 10);
 
     const admin = new Admin({
-      name: 'Super Admin',
+      name: 'zenithile admin',
       email: 'admin@example.com',
       password: hashedPassword,
     });
