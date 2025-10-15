@@ -206,24 +206,63 @@ export default function AdminNavbar() {
     { path: '/admin/stats', label: 'Stats' },
   ];
 
-  useEffect(() => {
-    if (!user?.token) return;
-    const fetchPending = async () => {
-      try {
-        const res = await axios.get(`${BASE_URL}/api/auth/admin/access-requests`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-        const pending = res.data.requests?.filter((r) => r.status === 'pending') || [];
-        setPendingCount(pending.length);
-      } catch (err) {
-        console.error('Failed to fetch access requests:', err);
-      }
-    };
 
-    fetchPending();
-    const interval = setInterval(fetchPending, 20000);
-    return () => clearInterval(interval);
-  }, [user]);
+
+
+//   useEffect(() => {
+//     if (!user?.token) return;
+//     const fetchPending = async () => {
+//       try {
+//         const res = await axios.get(`${BASE_URL}/api/auth/admin/access-requests`, {
+//           headers: { Authorization: `Bearer ${user.token}` },
+//         });
+//         const pending = res.data.requests?.filter((r) => r.status === 'pending') || [];
+//         setPendingCount(pending.length);
+//       } catch (err) {
+//         console.error('Failed to fetch access requests:', err);
+//       }
+//     };
+
+//     fetchPending();
+//     const interval = setInterval(fetchPending, 20000);
+//     return () => clearInterval(interval);
+//   }, [user]);
+
+
+
+useEffect(() => {
+  if (!user?.token) return;
+
+  const fetchPending = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/auth/admin/access-requests`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const pending = res.data.requests?.filter((r) => r.status === 'pending') || [];
+      setPendingCount(pending.length);
+    } catch (err) {
+      console.error('Failed to fetch access requests:', err);
+    }
+  };
+
+  fetchPending();
+
+  // 🔁 Listen for updates from anywhere in the app
+  window.addEventListener('requestsUpdated', fetchPending);
+
+  const interval = setInterval(fetchPending, 20000);
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener('requestsUpdated', fetchPending);
+  };
+}, [user]);
+
+
+
+
+
+
+
 
   return (
     <>

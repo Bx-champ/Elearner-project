@@ -1239,27 +1239,71 @@ router.get('/user/chapter-access/all', verifyToken(), async (req, res) => {
 
 
 
+// router.get('/user/chapter-access/:bookId', async (req, res) => {
+//   try {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     if (!token) return res.status(401).json({ message: 'No token provided' });
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+//     // Fetch all access entries for this user and book
+//     const accessList = await ChapterAssignment.find({
+//       userId: decoded.id,
+//       bookId: req.params.bookId
+//     });
+
+//     const accessInfo = accessList.map(a => ({
+//       chapterId: a.chapterId.toString(),
+//       expiresAt: a.expiresAt,
+//     }));
+
+//     res.json({ success: true, accessInfo });
+//   } catch (err) {
+//     console.error('Error fetching chapter access:', err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// });
+
+
+
 router.get('/user/chapter-access/:bookId', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'No token provided' });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { bookId } = req.params;
 
-    // Fetch all access entries for this user and book
-    const accessList = await ChapterAssignment.find({
-      userId: decoded.id,
-      bookId: req.params.bookId
+    // 1️⃣ Fetch expiry-based access
+    const expiryAssignments = await ChapterAssignment.find({ userId, bookId }).lean();
+
+    // 2️⃣ Fetch approved access requests
+    const approvedRequests = await ChapterAccessRequest.find({
+      userId,
+      bookId,
+      'chapters.status': 'approved',
+    }).lean();
+
+    const accessMap = new Map();
+
+    // Add expiry-based first (priority)
+    expiryAssignments.forEach(a => {
+      accessMap.set(a.chapterId.toString(), { chapterId: a.chapterId.toString(), expiresAt: a.expiresAt });
     });
 
-    const accessInfo = accessList.map(a => ({
-      chapterId: a.chapterId.toString(),
-      expiresAt: a.expiresAt,
-    }));
+    // Add approved ones if not already present
+    approvedRequests.forEach(req => {
+      req.chapters.forEach(chObj => {
+        if (chObj.status === 'approved' && !accessMap.has(chObj.chapterId.toString())) {
+          accessMap.set(chObj.chapterId.toString(), { chapterId: chObj.chapterId.toString() });
+        }
+      });
+    });
 
-    res.json({ success: true, accessInfo });
+    res.json({ success: true, accessInfo: Array.from(accessMap.values()) });
   } catch (err) {
-    console.error('Error fetching chapter access:', err);
+    console.error('❌ Error fetching chapter access:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

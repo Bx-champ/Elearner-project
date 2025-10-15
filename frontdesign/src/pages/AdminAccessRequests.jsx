@@ -168,13 +168,17 @@ export default function AdminAccessRequests() {
   const handleStatusUpdate = async (requestId, chapterId, status) => {
     try {
       setUpdatingId(`${requestId}-${chapterId}`);
-      await axios.put(
-        `${BASE_URL}/api/auth/admin/access-request/${requestId}/chapter/${chapterId}`,
-        { status },
-        { headers: { Authorization: `Bearer ${user.token}` } }
-      );
-      toast.success(`✅ Chapter ${status} successfully`);
-      fetchRequests();
+    await axios.put(
+  `${BASE_URL}/api/auth/admin/access-request/${requestId}/chapter/${chapterId}`,
+  { status },
+  { headers: { Authorization: `Bearer ${user.token}` } }
+);
+toast.success(`✅ Chapter ${status} successfully`);
+fetchRequests();
+
+// 🔄 Trigger navbar refresh instantly
+window.dispatchEvent(new Event('requestsUpdated'));
+
     } catch (err) {
       console.error(`Error updating chapter ${chapterId}:`, err);
       toast.error(`Failed to update chapter ${chapterId}`);
